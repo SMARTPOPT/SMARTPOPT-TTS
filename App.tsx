@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Tab, UserRole } from './types';
-import Login from './components/Login';
+import Login from './components/login';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Beranda from './components/Beranda';
