@@ -25,7 +25,7 @@ export async function* askAgriExpertStream(
     contents.push({ role: 'user', parts: currentParts });
 
     const stream = await ai.models.generateContentStream({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.0-flash-preview',
       contents: contents,
       config: {
         tools: [{ googleSearch: {} }],
