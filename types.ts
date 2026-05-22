@@ -20,6 +20,7 @@ export interface ConsultationRecord {
   farmerName: string;
   address: string;
   farmerGroup: string;
+  phoneNumber?: string;
   question: string;
   aiResponse: string;
   image?: string;

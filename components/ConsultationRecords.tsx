@@ -2,6 +2,66 @@
 import React, { useState, useEffect } from 'react';
 import { ConsultationRecord } from '../types';
 
+// Safe field reader for Google Apps Script items, matching various English and Indonesian keys/headers
+const getField = (item: any, keys: string[], fallback = '') => {
+  for (const k of keys) {
+    if (item && item[k] !== undefined && item[k] !== null) {
+      return String(item[k]).trim();
+    }
+  }
+  return fallback;
+};
+
+const parseRemoteItem = (item: any): ConsultationRecord | null => {
+  if (!item) return null;
+  
+  let ticketId = getField(item, ['ticketId', 'No  Tiket', 'No Tiket', 'no  tiket', 'no tiket', 'Ticket', 'Tiket', 'ticket', 'Nomor Tiket', 'No. Tiket', 'no_tiket', 'id']);
+  let question = getField(item, ['Masalah', 'masalah', 'question', 'problem']);
+  
+  // If no ticketId was found directly, try to extract it from the prepended bracket string in Masalah
+  if (!ticketId) {
+    const match = question.match(/\[(?:No\.\s*)?Tiket:\s*(TKT-[^\]\s]+)\]/i);
+    if (match) {
+      ticketId = match[1];
+    }
+  }
+
+  // If we still don't have a valid ticket token, skip this empty or unrelated row
+  if (!ticketId || !ticketId.startsWith('TKT-')) {
+    return null;
+  }
+
+  // Strip ticket brackets from question for a beautiful cleaned display
+  let cleanQuestion = question;
+  if (cleanQuestion.startsWith('[No. Tiket:')) {
+    cleanQuestion = cleanQuestion.replace(/^\[No\.\s*Tiket:\s*TKT-[^\]\s]+\]\s*/i, '');
+  } else if (cleanQuestion.startsWith('[Tiket:')) {
+    cleanQuestion = cleanQuestion.replace(/^\[Tiket:\s*TKT-[^\]\s]+\]\s*/i, '');
+  }
+
+  const name = getField(item, ['Nama', 'nama', 'farmerName', 'name', 'farmer_name'], 'Tanpa Nama');
+  const address = getField(item, ['Alamat', 'alamat', 'address'], '');
+  const group = getField(item, ['Kelompok Tani', 'kelompok_tani', 'kelompokTani', 'farmerGroup', 'group'], '');
+  const phone = getField(item, ['No Hp', 'No HP', 'no hp', 'phoneNumber', 'phone', 'No. HP', 'hp', 'no_hp', 'whatsapp'], '');
+  const response = getField(item, ['Hasil', 'hasil', 'aiResponse', 'response', 'jawaban'], '');
+  const timestamp = getField(item, ['Tanggal', 'tanggal', 'timestamp', 'date'], new Date().toLocaleString('id-ID'));
+  const image = getField(item, ['image', 'image_url', 'gambar', 'Foto', 'foto'], '');
+
+  return {
+    id: getField(item, ['id']) || Date.now().toString() + '-' + ticketId,
+    ticketId,
+    timestamp,
+    farmerName: name,
+    address,
+    farmerGroup: group,
+    phoneNumber: phone,
+    question: cleanQuestion || '(Tanpa keterangan / Hanya gambar)',
+    aiResponse: response || '(Analisis diproses)',
+    image,
+    chatHistory: []
+  };
+};
+
 const ConsultationRecords: React.FC = () => {
   const [records, setRecords] = useState<ConsultationRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -9,11 +69,279 @@ const ConsultationRecords: React.FC = () => {
   const [viewImage, setViewImage] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string | 'all' } | null>(null);
   const [selectedRecord, setSelectedRecord] = useState<ConsultationRecord | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<{ type: 'success' | 'error' | null, message: string }>({ type: null, message: '' });
 
   useEffect(() => {
+    // 1. Initial Load from LocalStorage for ultra-fast, snappy UX
     const stored = JSON.parse(localStorage.getItem('popt_consultation_records') || '[]');
     setRecords(stored);
+    
+    // 2. Perform background synchronization immediately on load to grab any changes automatically
+    autoSyncOnLoad();
   }, []);
+
+  const autoSyncOnLoad = async () => {
+    try {
+      const res = await fetch('/api/sync/apps-script');
+      if (res.ok) {
+        const responseJson = await res.json();
+        if (responseJson.success && Array.isArray(responseJson.data)) {
+          const remoteData = responseJson.data;
+          const localData: ConsultationRecord[] = JSON.parse(localStorage.getItem('popt_consultation_records') || '[]');
+          
+          // Merge remote with local values uniquely by ticketId
+          const map = new Map<string, ConsultationRecord>();
+          
+          remoteData.forEach(item => {
+            const parsed = parseRemoteItem(item);
+            if (parsed) {
+              map.set(parsed.ticketId, parsed);
+            }
+          });
+
+          localData.forEach(item => {
+            if (item.ticketId) {
+              const existing = map.get(item.ticketId);
+              if (existing) {
+                map.set(item.ticketId, {
+                  ...existing,
+                  ...item,
+                  chatHistory: item.chatHistory || existing.chatHistory,
+                  image: item.image || existing.image
+                });
+              } else {
+                map.set(item.ticketId, item);
+              }
+            }
+          });
+
+          const merged = Array.from(map.values()).sort((a, b) => b.id.localeCompare(a.id));
+          localStorage.setItem('popt_consultation_records', JSON.stringify(merged));
+          setRecords(merged);
+        }
+      }
+    } catch (e) {
+      console.warn('Silently skipped background auto-sync due to offline/network state.', e);
+    }
+  };
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    setSyncStatus({ type: null, message: '' });
+    try {
+      // 1. Fetch remote data from Google Sheets via our Server Proxy
+      const res = await fetch('/api/sync/apps-script');
+      if (!res.ok) {
+        let errMsg = 'Gagal menghubungi proxy server.';
+        try {
+          const errData = await res.json();
+          if (errData && errData.error) {
+            errMsg = errData.error;
+          }
+        } catch (_) {}
+        throw new Error(errMsg);
+      }
+      const responseJson = await res.json();
+      if (!responseJson.success) {
+        throw new Error(responseJson.error || 'Gagal sinkronisasi data.');
+      }
+
+      const remoteData = Array.isArray(responseJson.data) ? responseJson.data : [];
+
+      // 2. Load current local data
+      const localData: ConsultationRecord[] = JSON.parse(localStorage.getItem('popt_consultation_records') || '[]');
+
+      // 3. Post any locally created records that aren't in the remote sheet yet
+      const remoteTicketIds = new Set<string>();
+      remoteData.forEach(item => {
+        const parsed = parseRemoteItem(item);
+        if (parsed) {
+          remoteTicketIds.add(parsed.ticketId);
+        }
+      });
+
+      // Avoid uploading incomplete registration tickets that do not have actual questions or AI responses
+      const unsyncedLocals = localData.filter(l => {
+        const isComplete = l.question && l.question !== '(Mulai Konsultasi)' && l.aiResponse && l.aiResponse !== '(Proses)';
+        return l.ticketId && isComplete && !remoteTicketIds.has(l.ticketId);
+      });
+
+      let uploadCount = 0;
+      for (const record of unsyncedLocals) {
+        try {
+          await fetch('/api/sync/apps-script', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ record })
+          });
+          uploadCount++;
+        } catch (postErr) {
+          console.error(`Gagal upload tiket ${record.ticketId} selama sinkronisasi:`, postErr);
+        }
+      }
+
+      // If we uploaded new ones, re-fetch remote state to maintain ultimate truth
+      let finalizedRemote = remoteData;
+      if (uploadCount > 0) {
+        const reFetchRes = await fetch('/api/sync/apps-script');
+        if (reFetchRes.ok) {
+          const reFetchJson = await reFetchRes.json();
+          if (reFetchJson.success && Array.isArray(reFetchJson.data)) {
+            finalizedRemote = reFetchJson.data;
+          }
+        }
+      }
+
+      // 4. Merge uniquely by ticketId
+      const map = new Map<string, ConsultationRecord>();
+      
+      finalizedRemote.forEach(item => {
+        const parsed = parseRemoteItem(item);
+        if (parsed) {
+          map.set(parsed.ticketId, parsed);
+        }
+      });
+
+      localData.forEach(item => {
+        if (item.ticketId) {
+          const existing = map.get(item.ticketId);
+          if (existing) {
+            map.set(item.ticketId, {
+              ...existing,
+              ...item,
+              chatHistory: item.chatHistory || existing.chatHistory,
+              image: item.image || existing.image
+            });
+          } else {
+            map.set(item.ticketId, item);
+          }
+        }
+      });
+
+      const merged = Array.from(map.values()).sort((a, b) => b.id.localeCompare(a.id));
+
+      localStorage.setItem('popt_consultation_records', JSON.stringify(merged));
+      setRecords(merged);
+      
+      let successMessage = 'Sinkronisasi berhasil!';
+      if (uploadCount > 0) {
+        successMessage += ` Terunggah ${uploadCount} laporan lokal baru ke Google Sheets.`;
+      } else {
+        successMessage += ' Semua data rekap sudah tersinkronisasi penuh dengan Google Sheets.';
+      }
+
+      setSyncStatus({
+        type: 'success',
+        message: successMessage
+      });
+    } catch (err: any) {
+      console.error('Manual Sync Error:', err);
+      setSyncStatus({
+        type: 'error',
+        message: `Sinkronisasi gagal: ${err.message || 'Harap periksa koneksi internet.'}`
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleSendTestData = async () => {
+    setIsSyncing(true);
+    setSyncStatus({ type: null, message: '' });
+    try {
+      const testRecord: ConsultationRecord = {
+        id: 'TEST-' + Math.floor(Math.random() * 1000000),
+        ticketId: 'TKT-TEST-' + Math.floor(1000 + Math.random() * 9000),
+        timestamp: new Date().toLocaleString('id-ID'),
+        farmerName: 'UJI COBA SISTEM (AI Studio)',
+        phoneNumber: '081234567890',
+        address: 'Desa Nule (Simulasi)',
+        farmerGroup: 'Poktan Tani Makmur',
+        question: 'Pengujian pengiriman data tes otomatis dari aplikasi BPP Nule ke Google Spreadsheet.',
+        aiResponse: 'Integrasi sistem Google Spreadsheet & Apps Script berhasil 100%! Data ini berhasil terkirim dan disimpan secara realtime.',
+        image: '',
+        chatHistory: []
+      };
+
+      const res = await fetch('/api/sync/apps-script', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ record: testRecord })
+      });
+
+      if (!res.ok) {
+        let errMsg = 'Gagal menghubungi proxy server.';
+        try {
+          const errData = await res.json();
+          if (errData && errData.error) {
+            errMsg = errData.error;
+          }
+        } catch (_) {}
+        throw new Error(errMsg);
+      }
+      
+      const responseJson = await res.json();
+      if (!responseJson.success) {
+        throw new Error(responseJson.error || 'Gagal mengirim data uji coba ke Apps Script.');
+      }
+
+      setSyncStatus({
+        type: 'success',
+        message: 'Kirim Data Tes Berhasil! Menghubungkan ulang ke Google Sheets...'
+      });
+
+      // Automatically trigger a fetch/sync to load the sheet rows including this new test row
+      setTimeout(async () => {
+        try {
+          const syncRes = await fetch('/api/sync/apps-script');
+          if (syncRes.ok) {
+            const syncJson = await syncRes.json();
+            if (syncJson.success && Array.isArray(syncJson.data)) {
+              const remoteData = syncJson.data;
+              const localData: ConsultationRecord[] = JSON.parse(localStorage.getItem('popt_consultation_records') || '[]');
+              
+              const map = new Map<string, ConsultationRecord>();
+              
+              localData.forEach(item => {
+                if (item.ticketId) map.set(item.ticketId, item);
+              });
+              
+              map.set(testRecord.ticketId, testRecord);
+
+              remoteData.forEach(item => {
+                const parsed = parseRemoteItem(item);
+                if (parsed) {
+                  map.set(parsed.ticketId, parsed);
+                }
+              });
+
+              const merged = Array.from(map.values()).sort((a, b) => b.id.localeCompare(a.id));
+              localStorage.setItem('popt_consultation_records', JSON.stringify(merged));
+              setRecords(merged);
+
+              setSyncStatus({
+                type: 'success',
+                message: 'Data Tes Terkirim & Terbaca Kembali! Silakan periksa Google Spreadsheet Anda.'
+              });
+            }
+          }
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setIsSyncing(false);
+        }
+      }, 1500);
+
+    } catch (err: any) {
+      console.error('Test Send Error:', err);
+      setSyncStatus({
+        type: 'error',
+        message: `Gagal mengirim data tes: ${err.message || 'Harap periksa Google Sheets Apps Script Anda.'}`
+      });
+      setIsSyncing(false);
+    }
+  };
 
   const toggleExpand = (id: string) => {
     const newExpanded = new Set(expandedRecords);
@@ -136,12 +464,30 @@ const ConsultationRecords: React.FC = () => {
                   <p className="text-sm font-bold text-slate-800">{selectedRecord.timestamp}</p>
                 </div>
                 <div className="bg-slate-50 p-3 rounded-xl">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Alamat</p>
-                  <p className="text-sm text-slate-600">{selectedRecord.address}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">No. HP / WhatsApp</p>
+                  {selectedRecord.phoneNumber ? (
+                    <a 
+                      href={`https://wa.me/${selectedRecord.phoneNumber.replace(/[^0-9]/g, '')}`} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-sm font-semibold text-green-600 hover:text-green-800 flex items-center space-x-1"
+                    >
+                      <svg className="w-3.5 h-3.5 text-green-500 fill-current" viewBox="0 0 24 24">
+                        <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.454L0 24zm6.59-4.846c1.6.95 3.197 1.45 4.817 1.455 5.426 0 9.842-4.414 9.845-9.843.002-2.63-1.023-5.102-2.886-6.966-1.863-1.864-4.337-2.887-6.965-2.888-5.437 0-9.855 4.417-9.858 9.846-.001 1.769.463 3.497 1.344 5.029l-.913 3.328 3.414-.896zM17.9 14.18c-.328-.163-1.933-.953-2.229-1.062-.297-.109-.512-.163-.726.163-.215.327-.83.1.057-.962 1.15-.362.367.135-.61.135-1.15a13.9 13.9 0 0 1-3.412-2.115 11.5 11.5 0 0 1-2.361-2.937c-.24-.41-.025-.63.18-.834.183-.183.41-.477.615-.716.205-.24.273-.41.41-.682.136-.273.068-.512-.034-.716-.103-.205-.727-1.758-1-.24-.103-.298-.445-.41-.593-.41-.183-.002-.544-.047-.716.108-.172.155-.544.505-.544 1.232 0 .727.528 1.429.6  1.525.073.095 1.04 1.587 2.518 2.223.351.151.625.242.84.31.353.111.674.095.928.058.283-.042.83-.34 1.4-.969.34-.338.56-.554.606-.803.114-.15.44-.092.44-.092s.114.18.114.18v.001z"/>
+                      </svg>
+                      <span>{selectedRecord.phoneNumber}</span>
+                    </a>
+                  ) : (
+                    <p className="text-sm font-medium text-slate-400">-</p>
+                  )}
                 </div>
                 <div className="bg-slate-50 p-3 rounded-xl">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Kelompok Tani</p>
                   <p className="text-sm text-slate-600">{selectedRecord.farmerGroup}</p>
+                </div>
+                <div className="bg-slate-50 p-3 col-span-2 rounded-xl">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Alamat</p>
+                  <p className="text-sm text-slate-600">{selectedRecord.address}</p>
                 </div>
               </div>
 
@@ -228,6 +574,48 @@ const ConsultationRecords: React.FC = () => {
           <p className="text-sm text-slate-500">Data petani dan riwayat tanya jawab dengan asisten AI</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={handleSync}
+            disabled={isSyncing}
+            className={`px-4 py-2 text-xs font-black rounded-xl transition-all border flex items-center gap-2 shadow-sm ${
+              isSyncing
+                ? 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'
+                : 'bg-green-50 text-green-700 hover:bg-green-100 border-green-200 hover:border-green-300'
+            }`}
+            title="Klik untuk menyingkronkan laporon dengan Google Spreadsheet"
+          >
+            <svg 
+              className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 4.75" />
+            </svg>
+            <span>{isSyncing ? 'Sinkronisasi...' : 'Sinkronisasi Sheets'}</span>
+          </button>
+
+          <button
+            onClick={handleSendTestData}
+            disabled={isSyncing}
+            className={`px-4 py-2 text-xs font-black rounded-xl transition-all border flex items-center gap-2 shadow-sm ${
+              isSyncing
+                ? 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'
+                : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200 hover:border-blue-300'
+            }`}
+            title="Mengirimkan satu baris rekam data simulasi/tes ke Google Spreadsheet Anda secara realtime"
+          >
+            <svg 
+              className="w-3.5 h-3.5 text-blue-500" 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            </svg>
+            <span>Kirim Data Tes</span>
+          </button>
+
           <div className="relative">
             <input 
               type="text" 
@@ -250,6 +638,31 @@ const ConsultationRecords: React.FC = () => {
           )}
         </div>
       </div>
+
+      {syncStatus.type && (
+        <div className={`p-4 rounded-xl text-xs font-bold flex items-center justify-between border ${
+          syncStatus.type === 'success' 
+            ? 'bg-green-50 text-green-800 border-green-100' 
+            : 'bg-red-50 text-red-800 border-red-100'
+        }`}>
+          <div className="flex items-center gap-2">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {syncStatus.type === 'success' ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              )}
+            </svg>
+            <span>{syncStatus.message}</span>
+          </div>
+          <button 
+            onClick={() => setSyncStatus({ type: null, message: '' })}
+            className="text-[10px] underline hover:no-underline font-normal uppercase"
+          >
+            Tutup
+          </button>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -293,6 +706,22 @@ const ConsultationRecords: React.FC = () => {
                       </td>
                       <td className="px-4 py-4 align-top">
                         <p className="text-sm font-bold text-slate-800">{record.farmerName}</p>
+                        {record.phoneNumber && (
+                          <div className="mt-1">
+                            <a 
+                              href={`https://wa.me/${record.phoneNumber.replace(/[^0-9]/g, '')}`} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center space-x-1 text-[11px] text-green-600 hover:text-green-800 font-semibold bg-green-50 px-2 py-0.5 rounded-full border border-green-100"
+                              title="Hubungi via WhatsApp"
+                            >
+                              <svg className="w-3 h-3 text-green-500 fill-current" viewBox="0 0 24 24">
+                                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.454L0 24zm6.59-4.846c1.6.95 3.197 1.45 4.817 1.455 5.426 0 9.842-4.414 9.845-9.843.002-2.63-1.023-5.102-2.886-6.966-1.863-1.864-4.337-2.887-6.965-2.888-5.437 0-9.855 4.417-9.858 9.846-.001 1.769.463 3.497 1.344 5.029l-.913 3.328 3.414-.896zM17.9 14.18c-.328-.163-1.933-.953-2.229-1.062-.297-.109-.512-.163-.726.163-.215.327-.83.1.057-.962 1.15-.362.367.135-.61.135-1.15a13.9 13.9 0 0 1-3.412-2.115 11.5 11.5 0 0 1-2.361-2.937c-.24-.41-.025-.63.18-.834.183-.183.41-.477.615-.716.205-.24.273-.41.41-.682.136-.273.068-.512-.034-.716-.103-.205-.727-1.758-1-.24-.103-.298-.445-.41-.593-.41-.183-.002-.544-.047-.716.108-.172.155-.544.505-.544 1.232 0 .727.528 1.429.6  1.525.073.095 1.04 1.587 2.518 2.223.351.151.625.242.84.31.353.111.674.095.928.058.283-.042.83-.34 1.4-.969.34-.338.56-.554.606-.803.114-.15.44-.092.44-.092s.114.18.114.18v.001z"/>
+                              </svg>
+                              <span>{record.phoneNumber}</span>
+                            </a>
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-4 align-top">
                         <p className="text-sm text-slate-600">{record.address}</p>
