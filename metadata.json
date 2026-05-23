@@ -1,6 +1,0 @@
-{
-  "name": "SMART POPT",
-  "description": "Sistem Monitoring, Analisis, dan Respon Terpadu (SMART) POPT - Platform digital untuk diagnosa hama berbasis AI dan manajemen laporan terintegrasi.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
