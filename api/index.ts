@@ -4,41 +4,19 @@ import cookieParser from 'cookie-parser';
 import { GoogleGenAI } from "@google/genai";
 
 const app = express();
-
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
 
-// --- FUNGSI HELPER & ROUTE ---
+// 1. Pindahkan helper function (getOAuth2Client, getDriveClient, extractTagValue)
+// Copy semua function helper dari server.ts lama Anda dan letakkan di sini.
 
-// Endpoint untuk AI Streaming
-app.post('/api/gemini/stream', async (req, res) => {
-  const { query, imageBase64, mimeType, history } = req.body;
-  
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
+// 2. Masukkan semua route yang ada di server.ts
+app.get('/api/auth/google/url', (req, res) => { /* ... kode Anda ... */ });
+app.get('/api/auth/google/callback', async (req, res) => { /* ... kode Anda ... */ });
+app.post('/api/gemini/stream', async (req, res) => { /* ... kode stream Anda ... */ });
+// Pindahkan juga app.get('/api/drive/data/:filename', ...) dan yang lainnya ke sini
 
-  try {
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-    
-    // Sesuaikan dengan model yang Anda gunakan
-    const stream = await ai.models.generateContentStream({
-      model: 'gemini-1.5-flash', 
-      contents: [...(history || []), { role: 'user', parts: [{ text: query }] }]
-    });
-
-    for await (const chunk of stream) {
-      if (chunk.text) {
-        res.write(`data: ${JSON.stringify({ text: chunk.text })}\n\n`);
-      }
-    }
-  } catch (error) {
-    res.write(`data: ${JSON.stringify({ error: 'Terjadi kesalahan sistem' })}\n\n`);
-  }
-  res.end();
-});
-
-// PENTING: Jangan gunakan app.listen() di sini!
-// Vercel akan otomatis mengekspor app ini sebagai fungsi serverless.
+// 3. JANGAN MASUKKAN app.listen atau startServer() di sini!
+// Cukup ekspor saja:
 export default app;
