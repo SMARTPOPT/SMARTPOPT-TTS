@@ -7,9 +7,10 @@ interface BerandaProps {
   userFullName?: string | null;
   bppName?: string | null;
   onNavigate: (tab: Tab) => void;
+  visitorCount?: number | null;
 }
 
-const Beranda: React.FC<BerandaProps> = ({ userFullName, bppName, onNavigate }) => {
+const Beranda: React.FC<BerandaProps> = ({ userFullName, bppName, onNavigate, visitorCount }) => {
   const [quote, setQuote] = useState('');
 
   const quotes = [
@@ -30,6 +31,16 @@ const Beranda: React.FC<BerandaProps> = ({ userFullName, bppName, onNavigate }) 
     { label: 'Kelompok Tani Binaan', value: '42 Unit', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', color: 'text-blue-600', bg: 'bg-blue-50' },
     { label: 'Status Keamanan OPT', value: 'WASPADA', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z', color: 'text-amber-600', bg: 'bg-amber-50' },
   ];
+
+  if (visitorCount !== undefined && visitorCount !== null) {
+    stats.push({
+      label: 'Jumlah Pengunjung',
+      value: `${visitorCount.toLocaleString('id-ID')} Orang`,
+      icon: 'M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z',
+      color: 'text-teal-600',
+      bg: 'bg-teal-50'
+    });
+  }
 
   const displayName = userFullName || `Petugas SMART POPT BPP ${bppName || 'Nule'}`;
 
@@ -111,7 +122,7 @@ const Beranda: React.FC<BerandaProps> = ({ userFullName, bppName, onNavigate }) 
       </section>
 
       {/* Real-time Stats Section */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <section className={`grid grid-cols-1 ${visitorCount !== undefined && visitorCount !== null ? 'sm:grid-cols-2 lg:grid-cols-4' : 'md:grid-cols-3'} gap-6`}>
         {stats.map((stat, idx) => (
           <div key={idx} className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 hover:shadow-xl hover:border-green-200 transition-all group">
             <div className={`w-14 h-14 ${stat.bg} ${stat.color} rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>

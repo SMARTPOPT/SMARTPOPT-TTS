@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Tab, UserRole } from './types';
 import Login from './components/Login';
 import Sidebar from './components/Sidebar';
@@ -24,6 +24,53 @@ const App: React.FC = () => {
   const [userFullName, setUserFullName] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [bppName, setBppName] = useState<string | null>(null);
+  const [visitorCount, setVisitorCount] = useState<number | null>(null);
+
+  // Synchronize and record page visitor analytics with thread-safe file-persistence
+  useEffect(() => {
+    let isMounted = true;
+    
+    const fetchCount = async () => {
+      try {
+        const res = await fetch('/api/visitor/count');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && typeof data.count === 'number' && isMounted) {
+            setVisitorCount(data.count);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch visitor count:', err);
+      }
+    };
+
+    const trackVisit = async () => {
+      try {
+        const hasVisited = sessionStorage.getItem('smartpopt_session_visited');
+        if (!hasVisited) {
+          const res = await fetch('/api/visitor/increment', { method: 'POST' });
+          if (res.ok) {
+            const data = await res.json();
+            if (data && typeof data.count === 'number' && isMounted) {
+              setVisitorCount(data.count);
+              sessionStorage.setItem('smartpopt_session_visited', 'true');
+              return;
+            }
+          }
+        }
+        await fetchCount();
+      } catch (err) {
+        console.error('Failed to increment visitor count:', err);
+        await fetchCount();
+      }
+    };
+
+    trackVisit();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleLogin = (username: string, fullName: string, role: UserRole, bpp?: string) => {
     setIsAuthenticated(true);
@@ -67,6 +114,7 @@ const App: React.FC = () => {
         bppName={bppName}
         isAuthenticated={isAuthenticated}
         onLoginClick={() => setShowLoginModal(true)}
+        visitorCount={visitorCount}
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -82,7 +130,7 @@ const App: React.FC = () => {
 
         <main className="flex-1 overflow-y-auto px-4 md:px-10 py-10 scroll-smooth">
           <div className="max-w-[1400px] mx-auto">
-            {activeTab === Tab.BERANDA && <Beranda userFullName={userFullName} bppName={bppName} onNavigate={handleTabChange} />}
+            {activeTab === Tab.BERANDA && <Beranda userFullName={userFullName} bppName={bppName} onNavigate={handleTabChange} visitorCount={visitorCount} />}
             {activeTab === Tab.OPT && <OptInformation userRole={userRole} />}
             {activeTab === Tab.KALENDER_TANAM && <KalenderTanam />}
             {activeTab === Tab.PENYULUHAN && <Penyuluhan userRole={userRole} />}

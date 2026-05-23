@@ -12,6 +12,7 @@ interface SidebarProps {
   bppName: string | null;
   isAuthenticated: boolean;
   onLoginClick: () => void;
+  visitorCount?: number | null;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
@@ -21,7 +22,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   userRole, 
   bppName,
   isAuthenticated,
-  onLoginClick
+  onLoginClick,
+  visitorCount
 }) => {
   const publicItems = [
     { id: Tab.BERANDA, label: 'Beranda', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
@@ -133,6 +135,26 @@ const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
       </nav>
+
+      {visitorCount !== undefined && visitorCount !== null && (
+        <div className="mx-4 mb-4 p-3.5 bg-green-950/60 rounded-xl border border-green-800/80 flex items-center justify-between shrink-0">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-8 h-8 rounded-lg bg-green-800/80 flex items-center justify-center text-green-400">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-[10px] text-green-400 font-bold uppercase tracking-wider">Total Pengunjung</p>
+              <p className="text-sm font-black text-white mt-0.5">{visitorCount.toLocaleString('id-ID')} Orang</p>
+            </div>
+          </div>
+          <span className="flex h-2 w-2 relative">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+        </div>
+      )}
 
       {isAuthenticated && (
         <div className="p-4 border-t border-green-800">
