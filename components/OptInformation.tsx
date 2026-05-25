@@ -6,7 +6,10 @@ const OptInformation = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [isAdmin] = useState(false); 
+  const [isAdmin] = useState(false);
+  
+  // State untuk slide gambar
+  const [currentSlide, setCurrentSlide] = useState(0);
 
   const [newPest, setNewPest] = useState({
     name: '', host: '', symptoms: '', control: '', 
@@ -19,6 +22,14 @@ const OptInformation = () => {
       if (data) setPests(data);
     }
     loadPests();
+  }, []);
+
+  // Auto-slide setiap 3 detik
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentSlide((prev) => (prev === 2 ? 0 : prev + 1));
+    }, 3000);
+    return () => clearInterval(timer);
   }, []);
 
   const handleAddPest = async (e: React.FormEvent) => {
@@ -49,33 +60,41 @@ const OptInformation = () => {
       )}
 
       <div className="space-y-4">
-        {filteredPests.map((pest) => (
-          <div key={pest.id} className="rounded-2xl bg-white shadow-md overflow-hidden">
-            {/* Gallery Carousel */}
-            <div className="flex gap-2 overflow-x-auto p-2 snap-x">
-              {[pest.imageUrl, pest.imageUrl2, pest.imageUrl3].filter(url => url).map((url, i) => (
-                <img key={i} src={url} alt={pest.name} className="w-40 h-40 object-cover rounded-xl shrink-0 snap-start shadow-sm" />
-              ))}
-            </div>
-            
-            <div className="p-4">
-              <h2 className="font-bold text-xl text-gray-900">{pest.name}</h2>
-              <p className="text-sm text-gray-600 mb-4">Inang: <span className="font-medium text-blue-600">{pest.host}</span></p>
-              <button onClick={() => setExpandedId(expandedId === pest.id ? null : pest.id)} className="w-full py-2 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition">
-                {expandedId === pest.id ? 'Tutup Detail' : 'Lihat Selengkapnya'}
-              </button>
+        {filteredPests.map((pest) => {
+          const images = [pest.imageUrl, pest.imageUrl2, pest.imageUrl3].filter(url => url);
+          
+          return (
+            <div key={pest.id} className="rounded-2xl bg-white shadow-md overflow-hidden">
+              {/* Image Slider */}
+              <div className="relative w-full h-64 overflow-hidden bg-gray-200">
+                {images.map((url, i) => (
+                  <div key={i} className={`absolute w-full h-full transition-opacity duration-700 ${currentSlide === i ? 'opacity-100' : 'opacity-0'}`}>
+                    <img src={url} alt={pest.name} className="w-full h-full object-cover" />
+                  </div>
+                ))}
+                <button onClick={() => setCurrentSlide(prev => (prev === 0 ? 2 : prev - 1))} className="absolute left-2 top-1/2 bg-black/30 text-white p-2 rounded-full">❮</button>
+                <button onClick={() => setCurrentSlide(prev => (prev === 2 ? 0 : prev + 1))} className="absolute right-2 top-1/2 bg-black/30 text-white p-2 rounded-full">❯</button>
+              </div>
+              
+              <div className="p-4">
+                <h2 className="font-bold text-xl text-gray-900">{pest.name}</h2>
+                <p className="text-sm text-gray-600 mb-4">Inang: <span className="font-medium text-blue-600">{pest.host}</span></p>
+                <button onClick={() => setExpandedId(expandedId === pest.id ? null : pest.id)} className="w-full py-2 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition">
+                  {expandedId === pest.id ? 'Tutup Detail' : 'Lihat Selengkapnya'}
+                </button>
 
-              {expandedId === pest.id && (
-                <div className="mt-4 pt-4 border-t space-y-3">
-                  <p className="text-xs font-bold text-gray-400 uppercase">Gejala</p>
-                  <p className="text-sm text-gray-700">{pest.symptoms}</p>
-                  <p className="text-xs font-bold text-gray-400 uppercase">Pengendalian</p>
-                  <p className="text-sm text-gray-700">{pest.control}</p>
-                </div>
-              )}
+                {expandedId === pest.id && (
+                  <div className="mt-4 pt-4 border-t space-y-3 animate-in fade-in">
+                    <p className="text-xs font-bold text-gray-400 uppercase">Gejala</p>
+                    <p className="text-sm text-gray-700">{pest.symptoms}</p>
+                    <p className="text-xs font-bold text-gray-400 uppercase">Pengendalian</p>
+                    <p className="text-sm text-gray-700">{pest.control}</p>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {showAddModal && (
