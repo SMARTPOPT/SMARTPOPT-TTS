@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabaseClient } from '../supabaseClient'; // Pastikan path ini benar
+import { supabaseClient } from '../supabaseClient';
 import { Officer, UserRole } from '../types';
 
 interface ContactOfficersProps {
@@ -10,7 +10,7 @@ const ContactOfficers: React.FC<ContactOfficersProps> = ({ userRole }) => {
   const [officers, setOfficers] = useState<Officer[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [photoMethod, setPhotoMethod] = useState<'link' | 'upload'>('link');
+  const [isLoading, setIsLoading] = useState(false); // State untuk loading
   const [file, setFile] = useState<File | null>(null);
   const [formData, setFormData] = useState<any>({
     name: '',
@@ -33,52 +33,58 @@ const ContactOfficers: React.FC<ContactOfficersProps> = ({ userRole }) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       setFile(selectedFile);
-      // Preview local
-      setFormData({ ...formData, photo_url: URL.createObjectURL(selectedFile) });
     }
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    let finalPhotoUrl = formData.photo_url;
+    setIsLoading(true); // Aktifkan indikator loading
 
-    // Jika upload manual, kirim file ke Storage
-    if (photoMethod === 'upload' && file) {
-      const fileName = `${Date.now()}_${file.name}`;
-      const { error: uploadError } = await supabaseClient.storage
-        .from('petugas-photos')
-        .upload(fileName, file);
+    try {
+      let finalPhotoUrl = formData.photo_url;
 
-      if (uploadError) { alert('Gagal upload: ' + uploadError.message); return; }
-      
-      const { data } = supabaseClient.storage.from('petugas-photos').getPublicUrl(fileName);
-      finalPhotoUrl = data.publicUrl;
+      // Logika Upload ke Supabase Storage
+      if (file) {
+        const fileName = `${Date.now()}_${file.name}`;
+        const { error: uploadError } = await supabaseClient.storage
+          .from('petugas-photos')
+          .upload(fileName, file);
+
+        if (uploadError) throw uploadError;
+        
+        const { data } = supabaseClient.storage.from('petugas-photos').getPublicUrl(fileName);
+        finalPhotoUrl = data.publicUrl;
+      }
+
+      const payload = {
+        name: formData.name,
+        role: formData.role,
+        phone: formData.phone.replace(/\D/g, ''),
+        photo_url: finalPhotoUrl,
+        description: formData.description
+      };
+
+      if (editingId) {
+        await supabaseClient.from('kontak').update(payload).eq('id', editingId);
+      } else {
+        await supabaseClient.from('kontak').insert([payload]);
+      }
+
+      setShowModal(false);
+      setEditingId(null);
+      setFile(null);
+      setFormData({ name: '', role: '', phone: '', photo_url: '', description: '' });
+      fetchOfficers();
+    } catch (error: any) {
+      alert('Terjadi kesalahan: ' + error.message);
+    } finally {
+      setIsLoading(false); // Matikan loading
     }
-
-    const payload = {
-      name: formData.name,
-      role: formData.role,
-      phone: formData.phone.replace(/\D/g, ''), // Membersihkan non-angka
-      photo_url: finalPhotoUrl,
-      description: formData.description
-    };
-
-    if (editingId) {
-      await supabaseClient.from('kontak').update(payload).eq('id', editingId);
-    } else {
-      await supabaseClient.from('kontak').insert([payload]);
-    }
-
-    setShowModal(false);
-    setEditingId(null);
-    setFormData({ name: '', role: '', phone: '', photo_url: '', description: '' });
-    fetchOfficers();
   };
 
   const handleEdit = (officer: any) => {
     setFormData(officer);
     setEditingId(officer.id);
-    setPhotoMethod('link');
     setShowModal(true);
   };
 
@@ -132,11 +138,20 @@ const ContactOfficers: React.FC<ContactOfficersProps> = ({ userRole }) => {
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <form onSubmit={handleSave} className="bg-white p-8 rounded-[2.5rem] w-full max-w-lg space-y-4">
+            <h3 className="text-xl font-bold mb-4">{editingId ? 'Edit Petugas' : 'Tambah Petugas'}</h3>
             <input required placeholder="Nama Lengkap" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-6 py-4 bg-slate-50 rounded-2xl" />
             <input required placeholder="Jabatan" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} className="w-full px-6 py-4 bg-slate-50 rounded-2xl" />
             <input required placeholder="No WhatsApp (628...)" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full px-6 py-4 bg-slate-50 rounded-2xl" />
+            <label className="text-sm text-slate-400">Upload Foto Profil:</label>
             <input type="file" onChange={handleFileChange} className="w-full" />
-            <button type="submit" className="w-full py-5 bg-green-600 text-white font-bold rounded-2xl">Simpan Data</button>
+            
+            <button 
+              type="submit" 
+              disabled={isLoading}
+              className={`w-full py-5 text-white font-bold rounded-2xl ${isLoading ? 'bg-gray-400' : 'bg-green-600'}`}
+            >
+              {isLoading ? 'Menyimpan Data...' : 'Simpan Data'}
+            </button>
           </form>
         </div>
       )}
