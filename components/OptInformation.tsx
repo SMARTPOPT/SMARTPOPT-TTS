@@ -5,95 +5,87 @@ const OptInformation = () => {
   const [pests, setPests] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [isAdmin] = useState(false); // Ganti ke true untuk menampilkan tombol tambah
-
-  // State untuk melacak slide gambar per hama
   const [currentSlides, setCurrentSlides] = useState<Record<number, number>>({});
-
-  const [newPest, setNewPest] = useState({
-    name: '', host: '', symptoms: '', control: '', 
-    imageUrl: '', imageUrl2: '', imageUrl3: ''
-  });
 
   useEffect(() => {
     async function loadPests() {
-      const { data } = await supabase.from('katalog_hama').select('*');
-      if (data) setPests(data);
+      const { data, error } = await supabase.from('katalog_hama').select('*');
+      if (error) console.error("Error fetching data:", error);
+      else if (data) setPests(data);
     }
     loadPests();
   }, []);
 
-  const handleAddPest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const { data, error } = await supabase.from('katalog_hama').insert([newPest]).select();
-    if (error) { alert("Gagal: " + error.message); } 
-    else {
-      setPests([...pests, data[0]]);
-      setShowAddModal(false);
-      setNewPest({ name: '', host: '', symptoms: '', control: '', imageUrl: '', imageUrl2: '', imageUrl3: '' });
-      alert("Data berhasil disimpan!");
-    }
-  };
-
+  // Memfilter hama berdasarkan input pencarian
   const filteredPests = pests.filter(p => 
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    p.host.toLowerCase().includes(searchQuery.toLowerCase())
+    (p.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+     p.host?.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
     <div className="p-4 max-w-lg mx-auto bg-gray-50 min-h-screen">
       <h1 className="text-3xl font-extrabold mb-6 text-center text-gray-800">Katalog Hama</h1>
 
-      {/* Pencarian */}
+      {/* Input Pencarian */}
       <input 
         type="text" 
         placeholder="Cari nama hama atau inang..." 
-        className="w-full p-3 mb-6 border rounded-xl shadow-sm outline-none" 
+        className="w-full p-4 mb-6 border border-gray-200 rounded-2xl shadow-sm outline-none focus:ring-2 focus:ring-green-500" 
         onChange={(e) => setSearchQuery(e.target.value)} 
       />
 
-      {/* Admin Button */}
-      {isAdmin && (
-        <button onClick={() => setShowAddModal(true)} className="w-full bg-green-600 text-white py-2 rounded-lg mb-6 font-semibold shadow">+ Tambah Hama Baru</button>
-      )}
-
-      {/* List Katalog */}
-      <div className="space-y-4">
+      <div className="space-y-6">
         {filteredPests.map((pest) => {
+          // Mengambil gambar yang tersedia saja
           const images = [pest.imageUrl, pest.imageUrl2, pest.imageUrl3].filter(url => url);
           const currentSlide = currentSlides[pest.id] || 0;
 
           return (
-            <div key={pest.id} className="rounded-2xl bg-white shadow-md overflow-hidden">
-              {/* Image Slider Per Hama */}
-              <div className="relative w-full h-64 overflow-hidden bg-gray-200">
-                {images.map((url, i) => (
-                  <div key={i} className={`absolute w-full h-full transition-opacity duration-700 ${currentSlide === i ? 'opacity-100' : 'opacity-0'}`}>
-                    <img src={url} alt={pest.name} className="w-full h-full object-cover" />
-                  </div>
-                ))}
-                {images.length > 1 && (
-                  <>
-                    <button onClick={() => setCurrentSlides(prev => ({...prev, [pest.id]: (currentSlide === 0 ? images.length - 1 : currentSlide - 1)}))} className="absolute left-2 top-1/2 bg-black/30 text-white p-2 rounded-full">❮</button>
-                    <button onClick={() => setCurrentSlides(prev => ({...prev, [pest.id]: (currentSlide === images.length - 1 ? 0 : currentSlide + 1)}))} className="absolute right-2 top-1/2 bg-black/30 text-white p-2 rounded-full">❯</button>
-                  </>
-                )}
-              </div>
+            <div key={pest.id} className="rounded-3xl bg-white shadow-sm border border-gray-100 overflow-hidden">
+              {/* Image Slider */}
+              {images.length > 0 ? (
+                <div className="relative w-full h-64 overflow-hidden bg-gray-100">
+                  {images.map((url, i) => (
+                    <img 
+                      key={i} 
+                      src={url} 
+                      alt={pest.name} 
+                      loading="lazy"
+                      className={`absolute w-full h-full object-cover transition-opacity duration-500 ${currentSlide === i ? 'opacity-100' : 'opacity-0'}`}
+                    />
+                  ))}
+                  {images.length > 1 && (
+                    <>
+                      <button onClick={() => setCurrentSlides(prev => ({...prev, [pest.id]: (currentSlide === 0 ? images.length - 1 : currentSlide - 1)}))} className="absolute left-3 top-1/2 bg-black/40 text-white p-2 rounded-full backdrop-blur-sm">❮</button>
+                      <button onClick={() => setCurrentSlides(prev => ({...prev, [pest.id]: (currentSlide === images.length - 1 ? 0 : currentSlide + 1)}))} className="absolute right-3 top-1/2 bg-black/40 text-white p-2 rounded-full backdrop-blur-sm">❯</button>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="w-full h-40 bg-gray-100 flex items-center justify-center text-gray-400">Tidak ada gambar</div>
+              )}
               
-              <div className="p-4">
-                <h2 className="font-bold text-xl text-gray-900">{pest.name}</h2>
-                <p className="text-sm text-gray-600 mb-4">Inang: <span className="font-medium text-blue-600">{pest.host}</span></p>
-                <button onClick={() => setExpandedId(expandedId === pest.id ? null : pest.id)} className="w-full py-2 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition">
+              <div className="p-6">
+                <h2 className="font-black text-2xl text-gray-900 mb-1">{pest.name}</h2>
+                <p className="text-sm text-gray-500 mb-4">Inang: <span className="font-semibold text-green-700">{pest.host}</span></p>
+                
+                <button 
+                  onClick={() => setExpandedId(expandedId === pest.id ? null : pest.id)} 
+                  className="w-full py-3 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition"
+                >
                   {expandedId === pest.id ? 'Tutup Detail' : 'Lihat Selengkapnya'}
                 </button>
 
                 {expandedId === pest.id && (
-                  <div className="mt-4 pt-4 border-t space-y-3 animate-in fade-in">
-                    <p className="text-xs font-bold text-gray-400 uppercase">Gejala</p>
-                    <p className="text-sm text-gray-700">{pest.symptoms}</p>
-                    <p className="text-xs font-bold text-gray-400 uppercase">Pengendalian</p>
-                    <p className="text-sm text-gray-700">{pest.control}</p>
+                  <div className="mt-6 pt-6 border-t border-gray-50 space-y-4 animate-in fade-in slide-in-from-top-2">
+                    <div>
+                      <p className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-1">Gejala</p>
+                      <p className="text-sm text-gray-600 leading-relaxed">{pest.symptoms}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-1">Pengendalian</p>
+                      <p className="text-sm text-gray-600 leading-relaxed">{pest.control}</p>
+                    </div>
                   </div>
                 )}
               </div>
@@ -101,8 +93,6 @@ const OptInformation = () => {
           );
         })}
       </div>
-      
-      {/* (Modal Form tetap sama seperti sebelumnya) */}
     </div>
   );
 };
