@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Tab, UserRole } from './types';
 import Login from './components/Login';
 import Sidebar from './components/Sidebar';
@@ -24,53 +23,9 @@ const App: React.FC = () => {
   const [userFullName, setUserFullName] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [bppName, setBppName] = useState<string | null>(null);
-  const [visitorCount, setVisitorCount] = useState<number | null>(null);
 
-  // Synchronize and record page visitor analytics with thread-safe file-persistence
-  useEffect(() => {
-    let isMounted = true;
-    
-    const fetchCount = async () => {
-      try {
-        const res = await fetch('/api/visitor/count');
-        if (res.ok) {
-          const data = await res.json();
-          if (data && typeof data.count === 'number' && isMounted) {
-            setVisitorCount(data.count);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to fetch visitor count:', err);
-      }
-    };
-
-    const trackVisit = async () => {
-      try {
-        const hasVisited = sessionStorage.getItem('smartpopt_session_visited');
-        if (!hasVisited) {
-          const res = await fetch('/api/visitor/increment', { method: 'POST' });
-          if (res.ok) {
-            const data = await res.json();
-            if (data && typeof data.count === 'number' && isMounted) {
-              setVisitorCount(data.count);
-              sessionStorage.setItem('smartpopt_session_visited', 'true');
-              return;
-            }
-          }
-        }
-        await fetchCount();
-      } catch (err) {
-        console.error('Failed to increment visitor count:', err);
-        await fetchCount();
-      }
-    };
-
-    trackVisit();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  // Visitor count diset manual ke 0 atau ambil dari Supabase nantinya jika perlu
+  const [visitorCount] = useState<number>(0);
 
   const handleLogin = (username: string, fullName: string, role: UserRole, bpp?: string) => {
     setIsAuthenticated(true);
@@ -104,7 +59,6 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-[#FDFDFD] overflow-hidden selection:bg-green-100 selection:text-green-900">
-      {/* Sidebar - Polished Glassmorphism Look */}
       <Sidebar 
         activeTab={activeTab} 
         setActiveTab={handleTabChange} 
@@ -138,7 +92,6 @@ const App: React.FC = () => {
             {activeTab === Tab.CUACA && <WeatherWidget />}
             {activeTab === Tab.PETUGAS && <ContactOfficers userRole={userRole} />}
             
-            {/* Protected Content */}
             {isAuthenticated && (
               <>
                 {activeTab === Tab.PENGAMATAN && <FieldObservation />}
@@ -148,7 +101,6 @@ const App: React.FC = () => {
               </>
             )}
 
-            {/* Restricted Access State */}
             {!isAuthenticated && isTabProtected(activeTab) && (
               <div className="flex flex-col items-center justify-center py-32 text-center animate-in zoom-in-95 duration-500">
                 <div className="w-24 h-24 bg-amber-50 rounded-3xl flex items-center justify-center text-amber-500 mb-8 border border-amber-100 shadow-inner">
@@ -176,7 +128,6 @@ const App: React.FC = () => {
         </footer>
       </div>
 
-      {/* Modern Login Modal */}
       {showLoginModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-md animate-in fade-in duration-300">
           <div className="relative w-full max-w-md shadow-[0_32px_64px_-15px_rgba(0,0,0,0.3)] animate-in slide-in-from-bottom-8 duration-500">
