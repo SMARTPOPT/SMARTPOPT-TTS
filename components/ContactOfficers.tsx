@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-// PERBAIKAN: Gunakan '../' saja agar naik satu tingkat ke folder 'src'
-import { supabase } from '../supabaseClient'; 
+// PERBAIKAN: Gunakan '../src/' untuk keluar dari 'components' dan masuk ke 'src'
+import { supabase } from '../src/supabaseClient'; 
 import { Officer, UserRole } from '../types';
 
 interface ContactOfficersProps {
@@ -12,6 +12,7 @@ const ContactOfficers: React.FC<ContactOfficersProps> = ({ userRole }) => {
 
   useEffect(() => {
     async function fetchOfficers() {
+      // Pastikan supabase sudah ter-import dengan benar di atas
       const { data, error } = await supabase.from('kontak').select('*');
       if (error) {
         console.error("Gagal ambil data:", error);
