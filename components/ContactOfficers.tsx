@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-// Menggunakan pola import yang sama dengan OptInformation
-import { supabase } from './supabaseClient'; 
+// PERBAIKAN: Menggunakan ../ agar naik satu tingkat dari folder 'components' ke 'src'
+import { supabase } from '../supabaseClient'; 
 import { Officer, UserRole } from '../types';
 
 interface ContactOfficersProps {
@@ -10,7 +10,6 @@ interface ContactOfficersProps {
 const ContactOfficers: React.FC<ContactOfficersProps> = ({ userRole }) => {
   const [officers, setOfficers] = useState<any[]>([]);
 
-  // Pola useEffect dan async function yang sama persis
   useEffect(() => {
     async function fetchOfficers() {
       const { data, error } = await supabase.from('kontak').select('*');
