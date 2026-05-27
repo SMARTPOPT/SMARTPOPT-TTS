@@ -1,13 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from './supabaseClient';
+// Ubah menjadi ../ agar naik satu tingkat ke folder src
+import { supabase } from '../supabaseClient'; 
 
 const OptInformation = () => {
   const [pests, setPests] = useState<any[]>([]);
 
   useEffect(() => {
     async function loadPests() {
-      const { data } = await supabase.from('katalog_hama').select('*');
-      if (data) setPests(data);
+      // Menambahkan pengecekan error untuk praktek yang lebih baik
+      const { data, error } = await supabase.from('katalog_hama').select('*');
+      if (error) {
+        console.error("Error mengambil data:", error);
+      } else if (data) {
+        setPests(data);
+      }
     }
     loadPests();
   }, []);
