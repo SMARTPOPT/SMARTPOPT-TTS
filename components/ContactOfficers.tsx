@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-// Jalur impor disesuaikan: keluar dari components (..), lalu masuk ke src/supabaseClient
-import { supabase } from '../src/supabaseClient'; 
+// PERBAIKAN: Gunakan '../' saja agar naik satu tingkat ke folder 'src'
+import { supabase } from '../supabaseClient'; 
 import { Officer, UserRole } from '../types';
 
 interface ContactOfficersProps {
