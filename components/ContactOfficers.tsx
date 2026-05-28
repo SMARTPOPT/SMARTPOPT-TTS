@@ -12,7 +12,7 @@ const DEFAULT_OFFICERS: Officer[] = [
     name: 'Pither Keristian',
     role: 'Petugas POPT',
     phone: '6281234567890',
-    photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
+    photoUrl: 'https://lh3.googleusercontent.com/d/1_B8lY-B9hFQwVIpVoTarEUDgCN3g4KWh=s400',
     description: 'Spesialis Hama Tanaman Pangan'
   },
   {
