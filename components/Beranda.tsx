@@ -80,9 +80,12 @@ const Beranda: React.FC<BerandaProps> = ({ userFullName, bppName, onNavigate, vi
         </div>
         
         <div className="relative z-10 flex-1">
-          <div className="inline-flex items-center space-x-2 px-3 py-1 bg-white/10 backdrop-blur-md rounded-full border border-white/20 text-xs font-bold uppercase tracking-widest mb-6">
-            <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-            <span>Sistem Monitoring, Analisis, dan Respon Terpadu</span>
+          <div className="flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-2 px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 text-xs font-bold uppercase tracking-widest mb-6 w-fit">
+            <div className="flex items-center space-x-2">
+              <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+              <span className="text-green-300 font-extrabold text-[10px] sm:text-xs tracking-wider shrink-0">SMART POPT:</span>
+            </div>
+            <span className="text-[9px] sm:text-[11px] leading-tight text-white/95">Sistem Monitoring, Analisis, dan Respon Terpadu</span>
           </div>
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-black leading-tight mb-6">
             Menjaga Ketahanan <br/> <span className="text-green-400">Pangan BPP {bppName || 'Nule'}</span>

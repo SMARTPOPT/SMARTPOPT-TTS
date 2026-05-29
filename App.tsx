@@ -153,7 +153,7 @@ const App: React.FC = () => {
                 {activeTab === Tab.PENGAMATAN && <FieldObservation />}
                 {activeTab === Tab.ARSIP && <Archive />}
                 {activeTab === Tab.MANAJEMEN_USER && <UserManagement />}
-                {activeTab === Tab.REKAP_KONSULTASI && <ConsultationRecords />}
+                {activeTab === Tab.REKAP_KONSULTASI && <ConsultationRecords userRole={userRole} />}
               </>
             )}
 

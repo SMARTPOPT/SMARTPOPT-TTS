@@ -9,6 +9,10 @@ const FieldObservation: React.FC = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   
+  // Official Juknis Configurations
+  const [scaleModel, setScaleModel] = useState<'Standard4' | 'DiseaseO9' | 'Mutlak'>('Standard4');
+  const [optCategory, setOptCategory] = useState<'Hama' | 'Penyakit' | 'DPI'>('Hama');
+
   // Generation States
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
@@ -48,7 +52,14 @@ const FieldObservation: React.FC = () => {
   // Method Specific: Tetap
   const [tetapData, setTetapData] = useState({
     totalPlants: 50,
-    cat1: 0, cat2: 0, cat3: 0, cat4: 0
+    cat1: 0,
+    cat2: 0,
+    cat3: 0,
+    cat4: 0,
+    cat5: 0,
+    cat7: 0,
+    cat9: 0,
+    catMutlak: 0
   });
 
   // Method Specific: Keliling
@@ -87,21 +98,61 @@ const FieldObservation: React.FC = () => {
     }
   };
 
-  const calculateIntensity = () => {
-    if (activeMethod === 'Tetap') {
-      const sumNV = (tetapData.cat1 * 1) + (tetapData.cat2 * 2) + (tetapData.cat3 * 3) + (tetapData.cat4 * 4);
-      const denominator = tetapData.totalPlants * 4;
-      return denominator > 0 ? (sumNV / denominator) * 100 : 0;
+  const calculateIntensityEx = (
+    method: 'Tetap' | 'Keliling',
+    data: any,
+    scaling: 'Standard4' | 'DiseaseO9' | 'Mutlak'
+  ) => {
+    if (method === 'Tetap') {
+      if (scaling === 'Mutlak') {
+        const n = Number(data.catMutlak) || 0;
+        const N = Number(data.totalPlants) || 1;
+        return N > 0 ? (n / N) * 100 : 0;
+      } else if (scaling === 'DiseaseO9') {
+        const sumNV = 
+          ((Number(data.cat1) || 0) * 1) + 
+          ((Number(data.cat3) || 0) * 3) + 
+          ((Number(data.cat5) || 0) * 5) + 
+          ((Number(data.cat7) || 0) * 7) + 
+          ((Number(data.cat9) || 0) * 9);
+        const denominator = (Number(data.totalPlants) || 1) * 9;
+        return denominator > 0 ? (sumNV / denominator) * 100 : 0;
+      } else { // Standard4
+        const sumNV = 
+          ((Number(data.cat1) || 0) * 1) + 
+          ((Number(data.cat2) || 0) * 2) + 
+          ((Number(data.cat3) || 0) * 3) + 
+          ((Number(data.cat4) || 0) * 4);
+        const denominator = (Number(data.totalPlants) || 1) * 4;
+        return denominator > 0 ? (sumNV / denominator) * 100 : 0;
+      }
     } else {
-      return kelilingData.luasWaspada > 0 ? (kelilingData.luasSerang / kelilingData.luasWaspada) * 100 : 0;
+      const wasp = Number(data.luasWaspada) || 0;
+      const ser = Number(data.luasSerang) || 0;
+      return wasp > 0 ? (ser / wasp) * 100 : 0;
+    }
+  };
+
+  const calculateIntensity = () => {
+    return calculateIntensityEx(activeMethod, activeMethod === 'Tetap' ? tetapData : kelilingData, scaleModel);
+  };
+
+  const getCategoryEx = (p: number, category: 'Hama' | 'Penyakit' | 'DPI') => {
+    if (category === 'Penyakit') {
+      if (p <= 11) return 'Ringan';
+      if (p <= 25) return 'Sedang';
+      if (p <= 85) return 'Berat';
+      return 'Puso';
+    } else { // Hama / DPI / Kekeringan
+      if (p <= 25) return 'Ringan';
+      if (p <= 50) return 'Sedang';
+      if (p <= 85) return 'Berat';
+      return 'Puso';
     }
   };
 
   const getCategory = (p: number) => {
-    if (p <= 25) return 'Ringan';
-    if (p <= 50) return 'Sedang';
-    if (p <= 75) return 'Berat';
-    return 'Puso';
+    return getCategoryEx(p, optCategory);
   };
 
   const generateAutoRecommendation = () => {
@@ -156,7 +207,7 @@ const FieldObservation: React.FC = () => {
       plantedArea: commonData.plantedArea ? Number(commonData.plantedArea) : undefined,
       pestPopulation: commonData.pestPopulation ? Number(commonData.pestPopulation) : undefined,
       naturalEnemyPopulation: commonData.naturalEnemyPopulation ? Number(commonData.naturalEnemyPopulation) : undefined,
-      details: activeMethod === 'Tetap' ? tetapData : kelilingData
+      details: activeMethod === 'Tetap' ? { ...tetapData, scaleModel, optCategory } : { ...kelilingData, optCategory }
     };
 
     saveHistory([newObs, ...history]);
@@ -597,31 +648,103 @@ Jenis OPT yang terpantau: ${uniqueOPTs.join(', ')}.`;
             <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
               <h5 className="font-bold text-slate-700 mb-4 flex items-center text-sm">
                 <svg className="w-4 h-4 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                Data Teknis ({activeMethod})
+                Data Teknis ({activeMethod}) sesuai Juknis OPT-DPI
               </h5>
 
-              {activeMethod === 'Tetap' ? (
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              {/* Juknis Specific Model Selector */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Kategori OPT / Kejadian (Juknis Tabel 4 & 5)</label>
+                  <select 
+                    value={optCategory} 
+                    onChange={e => setOptCategory(e.target.value as any)} 
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none text-sm font-semibold text-slate-700"
+                  >
+                    <option value="Hama">Hama (Tabel 4 Juknis: Ringan &le; 25%, Sedang &le; 50%, Berat &le; 85%)</option>
+                    <option value="Penyakit">Penyakit (Tabel 5 Juknis: Ringan &le; 11%, Sedang &le; 25%, Berat &le; 85%)</option>
+                    <option value="DPI">Dampak Perubahan Iklim (Kekeringan / Banjir / Bencana)</option>
+                  </select>
+                </div>
+                {activeMethod === 'Tetap' && (
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase">Total Tanaman</label>
-                    <input type="number" value={tetapData.totalPlants} onChange={e => setTetapData({...tetapData, totalPlants: Number(e.target.value)})} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    <label className="text-xs font-bold text-slate-500 uppercase">Model Skala Kerusakan (Juknis Hal 34, 45)</label>
+                    <select 
+                      value={scaleModel} 
+                      onChange={e => setScaleModel(e.target.value as any)} 
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none text-sm font-semibold text-slate-700"
+                    >
+                      <option value="Standard4">Standard Skala 0 - 4 (Z = 4; Juknis Hal 34)</option>
+                      <option value="DiseaseO9">Skala Tidak Mutlak 0, 1, 3, 5, 7, 9 (Z = 9; Juknis Hal 45)</option>
+                      <option value="Mutlak">Kerusakan Mutlak / Counts (Sundep/Beluk/Puso - Z = 1; Juknis Hal 43)</option>
+                    </select>
                   </div>
-                  <div className="space-y-1 text-green-600">
-                    <label className="text-[10px] font-bold uppercase">Skala 1</label>
-                    <input type="number" value={tetapData.cat1} onChange={e => setTetapData({...tetapData, cat1: Number(e.target.value)})} className="w-full px-3 py-2 border border-green-200 rounded-lg text-sm" />
-                  </div>
-                  <div className="space-y-1 text-amber-600">
-                    <label className="text-[10px] font-bold uppercase">Skala 2</label>
-                    <input type="number" value={tetapData.cat2} onChange={e => setTetapData({...tetapData, cat2: Number(e.target.value)})} className="w-full px-3 py-2 border border-amber-200 rounded-lg text-sm" />
-                  </div>
-                  <div className="space-y-1 text-orange-600">
-                    <label className="text-[10px] font-bold uppercase">Skala 3</label>
-                    <input type="number" value={tetapData.cat3} onChange={(e) => setTetapData({...tetapData, cat3: Number(e.target.value)})} className="w-full px-3 py-2 border border-orange-200 rounded-lg text-sm" />
-                  </div>
-                  <div className="space-y-1 text-red-600">
-                    <label className="text-[10px] font-bold uppercase">Skala 4</label>
-                    <input type="number" value={tetapData.cat4} onChange={e => setTetapData({...tetapData, cat4: Number(e.target.value)})} className="w-full px-3 py-2 border border-red-200 rounded-lg text-sm" />
-                  </div>
+                )}
+              </div>
+
+              {activeMethod === 'Tetap' ? (
+                <div>
+                  {scaleModel === 'Mutlak' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">Jumlah Tanaman Contoh (N)</label>
+                        <input type="number" value={tetapData.totalPlants} onChange={e => setTetapData({...tetapData, totalPlants: Number(e.target.value)})} className="w-full px-3 py-2 border rounded-lg text-sm bg-white" placeholder="Contoh: 50" />
+                      </div>
+                      <div className="space-y-1 text-red-600">
+                        <label className="text-[10px] font-bold uppercase">Jumlah Tanaman Rusak Mutlak (n)</label>
+                        <input type="number" value={tetapData.catMutlak} onChange={e => setTetapData({...tetapData, catMutlak: Number(e.target.value)})} className="w-full px-3 py-2 border border-red-200 rounded-lg text-sm bg-white" placeholder="Contoh: 5" />
+                      </div>
+                    </div>
+                  ) : scaleModel === 'DiseaseO9' ? (
+                    <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+                      <div className="col-span-2 md:col-span-1 space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">Total Tanaman (N)</label>
+                        <input type="number" value={tetapData.totalPlants} onChange={e => setTetapData({...tetapData, totalPlants: Number(e.target.value)})} className="w-full px-3 py-2 border rounded-lg text-sm bg-white" />
+                      </div>
+                      <div className="space-y-1 text-green-600">
+                        <label className="text-[10px] font-bold uppercase">Skala 1</label>
+                        <input type="number" value={tetapData.cat1} onChange={e => setTetapData({...tetapData, cat1: Number(e.target.value)})} className="w-full px-3 py-2 border border-green-200 rounded-lg text-sm bg-white" />
+                      </div>
+                      <div className="space-y-1 text-amber-600">
+                        <label className="text-[10px] font-bold uppercase">Skala 3</label>
+                        <input type="number" value={tetapData.cat3} onChange={e => setTetapData({...tetapData, cat3: Number(e.target.value)})} className="w-full px-3 py-2 border border-amber-200 rounded-lg text-sm bg-white" />
+                      </div>
+                      <div className="space-y-1 text-orange-600">
+                        <label className="text-[10px] font-bold uppercase">Skala 5</label>
+                        <input type="number" value={tetapData.cat5} onChange={e => setTetapData({...tetapData, cat5: Number(e.target.value)})} className="w-full px-3 py-2 border border-orange-200 rounded-lg text-sm bg-white" />
+                      </div>
+                      <div className="space-y-1 text-red-500">
+                        <label className="text-[10px] font-bold uppercase">Skala 7</label>
+                        <input type="number" value={tetapData.cat7} onChange={e => setTetapData({...tetapData, cat7: Number(e.target.value)})} className="w-full px-3 py-2 border border-red-200 rounded-lg text-sm bg-white" />
+                      </div>
+                      <div className="space-y-1 text-red-700">
+                        <label className="text-[10px] font-bold uppercase">Skala 9</label>
+                        <input type="number" value={tetapData.cat9} onChange={e => setTetapData({...tetapData, cat9: Number(e.target.value)})} className="w-full px-3 py-2 border border-red-300 rounded-lg text-sm bg-white" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">Total Tanaman (N)</label>
+                        <input type="number" value={tetapData.totalPlants} onChange={e => setTetapData({...tetapData, totalPlants: Number(e.target.value)})} className="w-full px-3 py-2 border rounded-lg text-sm bg-white" />
+                      </div>
+                      <div className="space-y-1 text-green-600">
+                        <label className="text-[10px] font-bold uppercase">Skala 1</label>
+                        <input type="number" value={tetapData.cat1} onChange={e => setTetapData({...tetapData, cat1: Number(e.target.value)})} className="w-full px-3 py-2 border border-green-200 rounded-lg text-sm bg-white" />
+                      </div>
+                      <div className="space-y-1 text-amber-600">
+                        <label className="text-[10px] font-bold uppercase">Skala 2</label>
+                        <input type="number" value={tetapData.cat2} onChange={e => setTetapData({...tetapData, cat2: Number(e.target.value)})} className="w-full px-3 py-2 border border-amber-200 rounded-lg text-sm bg-white" />
+                      </div>
+                      <div className="space-y-1 text-orange-600">
+                        <label className="text-[10px] font-bold uppercase">Skala 3</label>
+                        <input type="number" value={tetapData.cat3} onChange={e => setTetapData({...tetapData, cat3: Number(e.target.value)})} className="w-full px-3 py-2 border border-orange-200 rounded-lg text-sm bg-white" />
+                      </div>
+                      <div className="space-y-1 text-red-600">
+                        <label className="text-[10px] font-bold uppercase">Skala 4</label>
+                        <input type="number" value={tetapData.cat4} onChange={e => setTetapData({...tetapData, cat4: Number(e.target.value)})} className="w-full px-3 py-2 border border-red-200 rounded-lg text-sm bg-white" />
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

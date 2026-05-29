@@ -175,7 +175,12 @@ const Header: React.FC<HeaderProps> = ({
                   />
                   <div>
                     <h3 className="text-sm font-bold tracking-tight">SMART POPT</h3>
-                    <p className="text-[9px] text-green-300 font-bold uppercase tracking-wider">NTT DIGITAL LEARNING</p>
+                    <p className="text-[8px] text-green-300 font-extrabold uppercase tracking-widest mt-0.5 leading-tight">
+                      Monitoring, Analisis, & Respon Terpadu
+                    </p>
+                    <p className="text-[7.5px] text-green-400/90 font-bold uppercase tracking-wider mt-0.5 leading-none">
+                      PENGAMAT ORGANISME PENGGANGGU TUMBUHAN
+                    </p>
                   </div>
                 </div>
                 <button 

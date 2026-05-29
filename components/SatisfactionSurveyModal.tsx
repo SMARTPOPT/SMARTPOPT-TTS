@@ -123,7 +123,7 @@ const SatisfactionSurveyModal: React.FC<SatisfactionSurveyModalProps> = () => {
               {/* Message text with high typography contrast */}
               <div className="space-y-4 text-slate-600 text-sm md:text-base leading-relaxed font-medium">
                 <p>
-                  Halo Pengunjung Setia! Kami di <span className="text-green-700 font-bold">BPP Nules NTT</span> terus meluncurkan pembaruan demi memudahkan sistem identifikasi hama dan penyakit bagi para petani lokal kita.
+                  Halo Pengunjung Setia! Kami di <span className="text-green-700 font-bold">Team SMART POPT</span> terus meluncurkan pembaruan demi memudahkan sistem identifikasi hama dan penyakit bagi para petani lokal kita.
                 </p>
                 <p className="bg-slate-50 p-4 rounded-xl border border-slate-100/80 text-xs md:text-sm text-slate-505 font-medium italic">
                   "Apakah Bapak/Ibu bersedia meluangkan waktu kurang dari 1 menit untuk mengisi kuesioner kepuasan penggunaan aplikasi ini? Masukan Anda sangat berarti bagi pengembangan pertanian yang bermartabat dan modern."

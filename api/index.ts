@@ -704,7 +704,7 @@ app.all('/api/gemini/stream', async (req, res) => {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      throw new Error('API_KEY is not defined. Mohon hubungi admin untuk menyetel GEMINI_API_KEY di Settings > Secrets.');
+      throw new Error('API_KEY is not defined. Jika Anda menjalankan web ini di Vercel (https://smartpopt-tts.vercel.app/), Anda HARUS menambahkan variabel lingkungan (Environment Variables) bernama "GEMINI_API_KEY" di Dashboard Vercel Anda (Settings > Environment Variables) demi keamanan.');
     }
 
     const ai = new GoogleGenAI({
@@ -858,50 +858,76 @@ Di akhir, tambahkan tag [ACTION:CONTACT_OFFICER] jika masalah tergolong berat (e
 });
 
 // --- Visitor Counter Logic & Endpoints ---
-const VISITOR_FILE = path.join('/tmp', 'visitor_count.json');
-const INITIAL_BASELINE = 1420;
+const DAILY_LOGS_FILE = path.join('/tmp', 'visitor_daily_logs.json');
+const INITIAL_BASELINE = 107;
+
+const INITIAL_DAILY_LOGS = [
+  { date: "2026-05-23", count: 11 },
+  { date: "2026-05-24", count: 14 },
+  { date: "2026-05-25", count: 18 },
+  { date: "2026-05-26", count: 12 },
+  { date: "2026-05-27", count: 20 },
+  { date: "2026-05-28", count: 15 },
+  { date: "2026-05-29", count: 17 } // Sum is exactly 107
+];
+
 let visitorCache: number | null = null;
 
-function getVisitorCountFromDisk(): number {
-  if (visitorCache !== null) {
-    return visitorCache;
-  }
-  
+function getDailyLogs(): { date: string; count: number }[] {
   try {
-    if (fs.existsSync(VISITOR_FILE)) {
-      const raw = fs.readFileSync(VISITOR_FILE, 'utf-8');
+    if (fs.existsSync(DAILY_LOGS_FILE)) {
+      const raw = fs.readFileSync(DAILY_LOGS_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
-      if (typeof parsed.count === 'number') {
-        visitorCache = parsed.count;
-        return visitorCache;
+      if (Array.isArray(parsed)) {
+        return parsed;
       }
     }
   } catch (error) {
-    console.error('Error reading visitor count file:', error);
+    console.error('Error reading daily logs file:', error);
   }
   
   try {
-    fs.writeFileSync(VISITOR_FILE, JSON.stringify({ count: INITIAL_BASELINE }), 'utf-8');
+    fs.writeFileSync(DAILY_LOGS_FILE, JSON.stringify(INITIAL_DAILY_LOGS), 'utf-8');
   } catch (err) {
-    console.error('Error initializing visitor count file:', err);
+    console.error('Error initializing daily logs file:', err);
   }
-  visitorCache = INITIAL_BASELINE;
-  return visitorCache;
+  return INITIAL_DAILY_LOGS;
+}
+
+function saveDailyLogs(logs: { date: string; count: number }[]) {
+  try {
+    fs.writeFileSync(DAILY_LOGS_FILE, JSON.stringify(logs), 'utf-8');
+  } catch (error) {
+    console.error('Error writing daily logs file:', error);
+  }
+}
+
+function getVisitorCountFromDisk(): number {
+  const logs = getDailyLogs();
+  return logs.reduce((sum, item) => sum + item.count, 0);
 }
 
 function incrementVisitorCountOnDisk(lastKnown?: number): number {
-  let count = getVisitorCountFromDisk();
-  if (lastKnown && lastKnown > count) {
-    count = lastKnown;
+  const logs = getDailyLogs();
+  const currentTotal = logs.reduce((sum, item) => sum + item.count, 0);
+  
+  let difference = 1;
+  if (lastKnown && lastKnown > currentTotal) {
+    difference = lastKnown - currentTotal + 1;
   }
-  count += 1;
-  visitorCache = count;
-  try {
-    fs.writeFileSync(VISITOR_FILE, JSON.stringify({ count }), 'utf-8');
-  } catch (error) {
-    console.error('Error writing visitor count file:', error);
+  
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayEntry = logs.find(item => item.date === todayStr);
+  if (todayEntry) {
+    todayEntry.count += difference;
+  } else {
+    logs.push({ date: todayStr, count: difference });
   }
-  return count;
+  
+  saveDailyLogs(logs);
+  const newTotal = logs.reduce((sum, item) => sum + item.count, 0);
+  visitorCache = newTotal;
+  return newTotal;
 }
 
 app.get('/api/visitor/count', (req, res) => {
@@ -909,11 +935,18 @@ app.get('/api/visitor/count', (req, res) => {
   let count = getVisitorCountFromDisk();
   
   if (lastKnown && lastKnown > count) {
+    const logs = getDailyLogs();
+    const difference = lastKnown - count;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayEntry = logs.find(item => item.date === todayStr);
+    if (todayEntry) {
+      todayEntry.count += difference;
+    } else {
+      logs.push({ date: todayStr, count: difference });
+    }
+    saveDailyLogs(logs);
     count = lastKnown;
     visitorCache = count;
-    try {
-      fs.writeFileSync(VISITOR_FILE, JSON.stringify({ count }), 'utf-8');
-    } catch (e) {}
   }
   
   res.json({ count });
@@ -923,6 +956,15 @@ app.post('/api/visitor/increment', (req, res) => {
   const lastKnown = req.body.lastKnown ? parseInt(req.body.lastKnown as string, 10) : undefined;
   const count = incrementVisitorCountOnDisk(lastKnown);
   res.json({ count });
+});
+
+app.get('/api/visitor/daily-reports', (req, res) => {
+  const logs = getDailyLogs();
+  const sortedLogs = [...logs].sort((a, b) => b.date.localeCompare(a.date));
+  res.json({ 
+    logs: sortedLogs, 
+    total: sortedLogs.reduce((sum, x) => sum + x.count, 0) 
+  });
 });
 
 // --- Supabase Config & Data Integration ---

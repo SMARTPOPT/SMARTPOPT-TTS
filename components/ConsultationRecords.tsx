@@ -62,7 +62,13 @@ const parseRemoteItem = (item: any): ConsultationRecord | null => {
   };
 };
 
-const ConsultationRecords: React.FC = () => {
+import { UserRole } from '../types';
+
+interface ConsultationRecordsProps {
+  userRole: UserRole | null;
+}
+
+const ConsultationRecords: React.FC<ConsultationRecordsProps> = ({ userRole }) => {
   const [records, setRecords] = useState<ConsultationRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedRecords, setExpandedRecords] = useState<Set<string>>(new Set());
@@ -71,6 +77,80 @@ const ConsultationRecords: React.FC = () => {
   const [selectedRecord, setSelectedRecord] = useState<ConsultationRecord | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<{ type: 'success' | 'error' | null, message: string }>({ type: null, message: '' });
+  
+  // Administrative Editing State Block
+  const [editingRecord, setEditingRecord] = useState<ConsultationRecord | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editForm, setEditForm] = useState({
+    farmerName: '',
+    phoneNumber: '',
+    address: '',
+    farmerGroup: '',
+    question: '',
+    aiResponse: ''
+  });
+
+  const handleEditClick = (record: ConsultationRecord) => {
+    setEditingRecord(record);
+    setEditForm({
+      farmerName: record.farmerName || '',
+      phoneNumber: record.phoneNumber || '',
+      address: record.address || '',
+      farmerGroup: record.farmerGroup || '',
+      question: record.question || '',
+      aiResponse: record.aiResponse || ''
+    });
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRecord) return;
+
+    setIsSavingEdit(true);
+    try {
+      const updatedRecord: ConsultationRecord = {
+        ...editingRecord,
+        farmerName: editForm.farmerName,
+        phoneNumber: editForm.phoneNumber,
+        address: editForm.address,
+        farmerGroup: editForm.farmerGroup,
+        question: editForm.question,
+        aiResponse: editForm.aiResponse
+      };
+
+      // 1. Responsively update local storage and view state immediately
+      const updatedRecords = records.map(r => r.id === editingRecord.id ? updatedRecord : r);
+      localStorage.setItem('popt_consultation_records', JSON.stringify(updatedRecords));
+      setRecords(updatedRecords);
+
+      // 2. Submit to the server proxy which pushes this straight up to the Google Sheets spreadsheet
+      const res = await fetch('/api/sync/apps-script', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ record: updatedRecord })
+      });
+
+      if (!res.ok) {
+        throw new Error('Tersimpan di perangkat ini, namun gagal disinkronkan ke Google Sheets.');
+      }
+
+      setSyncStatus({
+        type: 'success',
+        message: `Laporan tiket ${editingRecord.ticketId} berhasil diperbarui dan disirami perubahan ke Google Sheets!`
+      });
+      setEditingRecord(null);
+    } catch (err: any) {
+      console.error(err);
+      setSyncStatus({
+        type: 'error',
+        message: err.message || 'Gagal mengirim suntingan laporan ke Google Sheets.'
+      });
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
 
   useEffect(() => {
     // 1. Initial Load from LocalStorage for ultra-fast, snappy UX
@@ -100,15 +180,16 @@ const ConsultationRecords: React.FC = () => {
             }
           });
 
+          // Priorities remote edits/modifications for other devices syncing
           localData.forEach(item => {
             if (item.ticketId) {
               const existing = map.get(item.ticketId);
               if (existing) {
                 map.set(item.ticketId, {
-                  ...existing,
-                  ...item,
+                  ...item, // Keep local fields as base
+                  ...existing, // Overwrite with remote fields from spreadsheet (edited fields)
                   chatHistory: item.chatHistory || existing.chatHistory,
-                  image: item.image || existing.image
+                  image: item.image && !item.image.includes('[Foto Laporan') ? item.image : existing.image
                 });
               } else {
                 map.set(item.ticketId, item);
@@ -212,10 +293,10 @@ const ConsultationRecords: React.FC = () => {
           const existing = map.get(item.ticketId);
           if (existing) {
             map.set(item.ticketId, {
-              ...existing,
-              ...item,
+              ...item, // Keep local fields as base
+              ...existing, // Overwrite with remote fields from spreadsheet (edited fields)
               chatHistory: item.chatHistory || existing.chatHistory,
-              image: item.image || existing.image
+              image: item.image && !item.image.includes('[Foto Laporan') ? item.image : existing.image
             });
           } else {
             map.set(item.ticketId, item);
@@ -578,6 +659,20 @@ const ConsultationRecords: React.FC = () => {
           <p className="text-sm text-slate-500">Data petani dan riwayat tanya jawab dengan asisten AI</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          {userRole === 'Admin' && (
+            <a
+              href="https://docs.google.com/spreadsheets/d/1qE2KRe-Wp7O4KgUlDFy9F3bUOjujxvfCOlVALk3HkDc/edit?gid=0#gid=0"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2 text-xs font-black rounded-xl transition-all border border-green-200 bg-white text-green-700 hover:bg-green-50 hover:text-green-800 shadow-sm flex items-center gap-2"
+              title="Edit laporon di spreadsheet eksternal"
+            >
+              <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+              <span>Edit di Google Sheets</span>
+            </a>
+          )}
           <button
             onClick={handleSync}
             disabled={isSyncing}
@@ -805,15 +900,28 @@ const ConsultationRecords: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-4 py-4 align-top">
-                        <button 
-                          onClick={() => setConfirmDelete({ id: record.id })}
-                          className="text-slate-300 hover:text-red-500 transition-colors p-1"
-                          title="Hapus Laporan"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
+                        <div className="flex items-center space-x-2">
+                          {userRole === 'Admin' && (
+                            <button 
+                              onClick={() => handleEditClick(record)}
+                              className="text-slate-300 hover:text-amber-500 transition-colors p-1"
+                              title="Edit Laporan"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                              </svg>
+                            </button>
+                          )}
+                          <button 
+                            onClick={() => setConfirmDelete({ id: record.id })}
+                            className="text-slate-300 hover:text-red-500 transition-colors p-1"
+                            title="Hapus Laporan"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -829,6 +937,114 @@ const ConsultationRecords: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Editing Modal */}
+      {editingRecord && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <form 
+            onSubmit={handleSaveEdit}
+            className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]"
+          >
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50 rounded-t-2xl text-slate-800">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Edit Laporan Lapangan</h3>
+                <p className="text-[10px] text-slate-500 font-bold">No. Tiket: {editingRecord.ticketId}</p>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setEditingRecord(null)}
+                className="p-2 hover:bg-slate-200 rounded-full transition-colors"
+                title="Tutup form"
+              >
+                <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-4 max-h-[60vh] scrollbar-thin">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Nama Petani</label>
+                  <input 
+                    type="text"
+                    required
+                    value={editForm.farmerName}
+                    onChange={(e) => setEditForm({ ...editForm, farmerName: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none text-sm font-semibold text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Nomor HP / WA</label>
+                  <input 
+                    type="text"
+                    value={editForm.phoneNumber}
+                    onChange={(e) => setEditForm({ ...editForm, phoneNumber: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none text-sm font-semibold text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Kelompok Tani</label>
+                  <input 
+                    type="text"
+                    value={editForm.farmerGroup}
+                    onChange={(e) => setEditForm({ ...editForm, farmerGroup: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none text-sm font-semibold text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Alamat</label>
+                  <input 
+                    type="text"
+                    value={editForm.address}
+                    onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none text-sm font-semibold text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Masalah Lapangan</label>
+                <textarea 
+                  rows={3}
+                  required
+                  value={editForm.question}
+                  onChange={(e) => setEditForm({ ...editForm, question: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none text-sm font-semibold text-slate-800 leading-relaxed"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Diagnosis & Saran Pengendalian</label>
+                <textarea 
+                  rows={5}
+                  required
+                  value={editForm.aiResponse}
+                  onChange={(e) => setEditForm({ ...editForm, aiResponse: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none text-sm font-semibold text-slate-800 leading-relaxed"
+                />
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-slate-100 bg-slate-50 rounded-b-2xl flex justify-end space-x-3">
+              <button 
+                type="button"
+                onClick={() => setEditingRecord(null)}
+                className="px-4 py-2 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors text-xs"
+              >
+                Batal
+              </button>
+              <button 
+                type="submit"
+                disabled={isSavingEdit}
+                className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-green-100 text-xs disabled:opacity-50"
+              >
+                {isSavingEdit ? 'Menyimpan...' : 'Simpan Perubahan'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 };

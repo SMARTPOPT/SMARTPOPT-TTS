@@ -401,7 +401,7 @@ const Consultation: React.FC<ConsultationProps> = ({ onNavigate }) => {
       const errMsgStr = String(err.message || err);
       
       if (errMsgStr.toUpperCase().includes('API_KEY')) {
-        errorMessage = 'Konfigurasi AI belum siap. Mohon pastikan API Key yang valid sudah terpasangkan di Settings > Secrets.';
+        errorMessage = 'Konfigurasi AI (GEMINI_API_KEY) belum siap. Jika di Vercel, pastikan Anda telah mendaftarkan variabel "GEMINI_API_KEY" di Dashboard Vercel Anda (Settings > Environment Variables). Jika lokal, pasang di menu Settings > Secrets.';
       } else if (errMsgStr.includes('fetch')) {
         errorMessage = 'Koneksi internet terputus atau gagal menghubungi server. Silakan periksa jaringan Anda dan coba lagi.';
       } else if (errMsgStr.includes('RESOURCE_EXHAUSTED') || errMsgStr.includes('quota') || errMsgStr.includes('429') || errMsgStr.includes('Too Many Requests')) {

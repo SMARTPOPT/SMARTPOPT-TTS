@@ -61,6 +61,57 @@ const MODUL_CONTENTS: Record<string, { title: string; pages: { subtitle: string;
         text: 'Selalu lakukan pengamatan visual di 20 rumpun sampel diagonal sebelum menyemprot. Jika rasio jumlah predator alami banding wereng berkisar 1:2 atau lebih tinggi, tunda penyemprotan bahan kimia sintetik karena koloni pemangsa alamiah masih sanggup menekan hama secara mandiri.'
       }
     ]
+  },
+  'Pencegahan Penyakit Bulai Pada Tanaman Jagung': {
+    title: 'Modul Teknis: Pencegahan Penyakit Bulai Pada Tanaman Jagung (Peronosclerospora maydis)',
+    pages: [
+      {
+        subtitle: 'Memahami Gejala Awal Bulai',
+        text: 'Penyakit Bulai adalah Momok nomor satu bagi petani jagung di NTT dan wilayah lainnya. Ditandai dengan munculnya klorosis memanjang (berwarna kuning keputihan) sejajar dengan tulang daun jagung yang berumur muda. Sering kali diikuti dengan adanya serbuk putih serupa tepung di permukaan bawah daun yang terinfeksi aktif pada pagi hari.'
+      },
+      {
+        subtitle: 'Tindakan Pencegahan Sejak Dini',
+        text: 'Fungisida berbahan aktif Metalaksil memegang peran kunci sebagai treatment benih sebelum tanam (seed treatment). Campurkan benih jagung dengan bubuk metalaksil basah sebelum ditanam di tanah sela musim pancaroba untuk mencegah jamur bulai berkembang di fase kecambah awal.'
+      },
+      {
+        subtitle: 'Pengaturan Sanitasi Serta Jarak Tanam',
+        text: 'Kelembapan tinggi adalah sahabat jamur. Penerapan sistem baris ganda (Legowo) sangat dianjurkan untuk memaksimalkan penetrasi radiasi surya dan kelancaran laju angin di sela baris jagung. Jika melihat tanaman bergejala bulai, cabut dan bakar sesegera mungkin di luar area kebun agar spora tidak menular.'
+      }
+    ]
+  },
+  'Panduan Lapangan Pengendalian Wereng Coklat': {
+    title: 'Buku Saku Lapangan: Pengendalian Wereng Batang Coklat (WBC)',
+    pages: [
+      {
+        subtitle: 'Biologi Wereng Batang Coklat',
+        text: 'Wereng Batang Coklat menghisap cairan batang padi dari pangkal tanaman dekat permukaan air sawah. Wereng menyukai area rindang lembap. Akibat serangan berat, hamparan sawah mengalami hopperburn—mengering cokelat nampak bagai terbakar melingkar yang menjalar dengan sangat kilat.'
+      },
+      {
+        subtitle: 'Pola Tanam & Pengairan Berselang',
+        text: 'Gunakan sistem pengairan berselang (intermittent irrigation) dengan membiarkan sawah mengering berkala untuk menekan kelembapan mikro rumpun padi. Kombinasikan dengan pola tanam jajar legowo agar sirkulasi udara lebih lancar dan memudahkan penyemprotan pas di pangkal padi.'
+      },
+      {
+        subtitle: 'Aplikasi Insektisida Nabati & Agens Hayati',
+        text: 'Semprot pangkal rumpun menggunakan agens hayati Beauveria bassiana yang memparasit tubuh wereng secara biologi, atau gunakan ramuan daun mimba dan tembakau. Hindari penggunaan insektisida berbahan aktif Piretroid sintetis karena terbukti memicu resurgensi (wereng bertelur lebih cepat).'
+      }
+    ]
+  },
+  'Teknik Sanitasi Lahan Musim Hujan': {
+    title: 'Panduan Praktis: Teknik Sanitasi Lahan Hortikultura Musim Hujan',
+    pages: [
+      {
+        subtitle: 'Pentingnya Sanitasi Lahan',
+        text: 'Suhu hangat disertai curah hujan yang lebat memicu ekstremnya kelembapan di wilayah kebun. Cendawan merugikan seperti Phytophthora dan antraknosa menyebar luas lewat percikan air hujan. Pembersihan residu sisa tanaman terinfeksi dari musim sebelumnya wajib tuntas dikerjakan sebelum mengolah bedengan baru.'
+      },
+      {
+        subtitle: 'Pembuatan Sistem Drainase Sempurna',
+        text: 'Tinggikan bedengan hingga 40-50 cm di musim hujan agar air tidak menggenang di wilayah perakaran tanaman cabai/tomat yang sensitif busuk akar. Parit drainase dibikin melandai tanpa ada bottleneck serbuan rumput liar agar air lancar mengalir ke pembuangan utama.'
+      },
+      {
+        subtitle: 'Sterilisasi Tanah & Aplikasi Kapur Pertanian',
+        text: 'Berikan kapur dolomit/zeolit untuk menjaga pH tanah tetap stabil di angka 6-7 pasca-hujan masam berkepanjangan. Taburkan jamur antagonis pemakan patogen tanah (Trichoderma) sesaat sebelum pemasangan mulsa plastik untuk pencegahan patek serta layu tanaman.'
+      }
+    ]
   }
 };
 
@@ -73,7 +124,27 @@ const VIDEO_DETAILS_MAP: Record<string, { duration: string; embedUrl: string; de
       { time: '00:00 - 02:15', title: 'Persiapan Lahan & Pembuatan Bedengan', desc: 'Cara meratakan tanah, memberikan kapur zeolit, penaburan kompos, memasang mulsa plastik perak untuk memantulkan sinar matahari guna mengusir hama Thrips.' },
       { time: '02:16 - 05:40', title: 'Persemaian Benih & Transplantasi', desc: 'Pemilahan benih unggul tahan patek, sterilisasi semai, pemindahan bibit berumur 15-20 hari ke bedengan dengan jarak tanam sejajar zig-zag.' },
       { time: '05:41 - 09:10', title: 'Pemupukan Liquid Organik & Pengairan', desc: 'Cara meracik pupuk cair hayati difermentasi menggunakan urine sapi, EM4 pertanian, disiram berkala 10 hari sekali secara terukur.' },
-      { time: '09:11 - Selesai', title: 'Pengendalian Hama Nabati & Panen Beruntun', desc: 'Menggunakan spray ekstrak daun nimba giling dan pemasangan perangkap kuning berperekat untuk menjaga kelestarian kebun cabai.' }
+      { time: '09:11 - Selesai', title: 'Pengendalian Hama Nabati & Panen Beruntun', desc: 'Menggunakan spray ekstrak daun mimba giling dan pemasangan perangkap kuning berperekat untuk menjaga kelestarian kebun cabai.' }
+    ]
+  },
+  'Pembuatan Pestisida Nabati Berbahan Daun Mimba': {
+    duration: '08:45',
+    embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+    description: 'Petunjuk praktis meracik bahan pestisida ramah lingkungan berbahan aktif Azadirachtin dari daun mimba untuk mengusir ulat, kutu daun, belalang, dan thrips.',
+    chapters: [
+      { time: '00:00 - 02:00', title: 'Pengumpulan Bahan & Daun Mimba', desc: 'Pemilihan daun mimba hijau tua segar tanpa bercak jamur, serta penakaran bahan pembantu berupa deterjen pencuci piring atau sabun colek cair sebagai emulgator.' },
+      { time: '02:01 - 05:30', title: 'Penggilingan Serta Ekstraksi Cairan', desc: 'Langkah melumatkan daun mimba lewat blender atau ditumbuk kasar, dilanjutkan perendaman dengan air bersih selama 24 jam penuh di wadah gelap tertutup.' },
+      { time: '05:31 - Selesai', title: 'Penyaringan & Teknik Penyemprotan', desc: 'Menyaring larutan gilingan memakai kain kasa halus, pengenceran dosis 1:10 dengan air, dan menyemprot tepat pada sore hari agar larutan aktif tidak menguap.' }
+    ]
+  },
+  'Teknik Inokulasi Jamur Trichoderma': {
+    duration: '10:15',
+    embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+    description: 'Video tutorial pembiakan mandiri spora Trichoderma harzianum sebagai agen pengendali jamur tanah patogen penyebab layu fusarium.',
+    chapters: [
+      { time: '00:00 - 03:00', title: 'Persiapan Media Nasi Sisa / Dedak', desc: 'Mengolah media nasi sisa kering atau dedak padi steril yang telah dikukus ringan untuk dijadikan tempat tumbuh substrat hifa Trichoderma.' },
+      { time: '03:01 - 07:00', title: 'Proses Inokulasi & Inkubasi Kamar', desc: 'Menaburkan starter bibit biakan murni Trichoderma ke media tumbuh secara steril, menutupnya rapat-rapat memakai kertas, diletakkan di tempat teduh.' },
+      { time: '07:01 - Selesai', title: 'Pemanenan Spora & Pengaplikasian Tanah', desc: 'Melihat ciri keberhasilan (koloni berwarna hijau tua tebal berpendar), cara melarutkan spora untuk siraman bedengan atau dipadukan kompos.' }
     ]
   }
 };
@@ -101,6 +172,12 @@ const Penyuluhan: React.FC<PenyuluhanProps> = ({ userRole }) => {
     { id: '2', title: 'Budidaya Cabai Sehat Tanpa Pestisida', type: 'Video', date: '05 Jan 2026', author: 'Tim POPT Jabar', url: 'https://www.youtube.com/embed/dQw4w9WgXcQ' },
     { id: '3', title: 'Teknik Sanitasi Lahan Musim Hujan', type: 'Infografis', date: '28 Des 2025', author: 'Kementan RI', url: sanisImg },
     { id: '4', title: 'Manajemen Musuh Alami di Sawah', type: 'Modul', date: '15 Des 2025', author: 'Balai Proteksi Tanaman', url: '' },
+    { id: '5', title: 'Pembuatan Pestisida Nabati Berbahan Daun Mimba', type: 'Video', date: '10 Jan 2026', author: 'Team SMART POPT', url: 'https://www.youtube.com/embed/dQw4w9WgXcQ' },
+    { id: '6', title: 'Kalender Tanam Dinamis Menghadapi Iklim NTT', type: 'Infografis', date: '02 Jan 2026', author: 'BMKG Kupang & Distan NTT', url: sanisImg },
+    { id: '7', title: 'Pencegahan Penyakit Bulai Pada Tanaman Jagung', type: 'Modul', date: '20 Des 2025', author: 'BPP Nules NTT', url: '' },
+    { id: '8', title: 'Teknik Inokulasi Jamur Trichoderma', type: 'Video', date: '15 Des 2025', author: 'Balai Proteksi NTT', url: 'https://www.youtube.com/embed/dQw4w9WgXcQ' },
+    { id: '9', title: 'Panduan Lapangan Pengendalian Wereng Coklat', type: 'Modul', date: '01 Des 2025', author: 'Kementerian Pertanian', url: '' },
+    { id: '10', title: 'Infografis Pengenalan Gejala Ulat Grayak Jagung', type: 'Infografis', date: '15 Nov 2025', author: 'Team SMART POPT', url: sanisImg }
   ];
 
   const [supabaseConnected, setSupabaseConnected] = useState(false);
