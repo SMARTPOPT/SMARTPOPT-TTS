@@ -15,6 +15,7 @@ import WeatherWidget from './components/WeatherWidget';
 import ContactOfficers from './components/ContactOfficers';
 import ConsultationRecords from './components/ConsultationRecords';
 import KalenderTanam from './components/KalenderTanam';
+import SatisfactionSurveyModal from './components/SatisfactionSurveyModal';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -26,17 +27,19 @@ const App: React.FC = () => {
   const [bppName, setBppName] = useState<string | null>(null);
   const [visitorCount, setVisitorCount] = useState<number | null>(null);
 
-  // Synchronize and record page visitor analytics with thread-safe file-persistence
+  // Synchronize and record page visitor analytics with self-healing browser-cooperative persistence
   useEffect(() => {
     let isMounted = true;
+    const lastKnownLocal = parseInt(localStorage.getItem('smartpopt_last_visitor_count') || '0', 10);
     
     const fetchCount = async () => {
       try {
-        const res = await fetch('/api/visitor/count');
+        const res = await fetch(`/api/visitor/count?lastKnown=${lastKnownLocal}`);
         if (res.ok) {
           const data = await res.json();
           if (data && typeof data.count === 'number' && isMounted) {
             setVisitorCount(data.count);
+            localStorage.setItem('smartpopt_last_visitor_count', String(data.count));
           }
         }
       } catch (err) {
@@ -48,12 +51,17 @@ const App: React.FC = () => {
       try {
         const hasVisited = sessionStorage.getItem('smartpopt_session_visited');
         if (!hasVisited) {
-          const res = await fetch('/api/visitor/increment', { method: 'POST' });
+          const res = await fetch('/api/visitor/increment', { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lastKnown: lastKnownLocal })
+          });
           if (res.ok) {
             const data = await res.json();
             if (data && typeof data.count === 'number' && isMounted) {
               setVisitorCount(data.count);
               sessionStorage.setItem('smartpopt_session_visited', 'true');
+              localStorage.setItem('smartpopt_last_visitor_count', String(data.count));
               return;
             }
           }
@@ -126,6 +134,7 @@ const App: React.FC = () => {
           onLogout={handleLogout}
           isAuthenticated={isAuthenticated}
           onLoginClick={() => setShowLoginModal(true)}
+          setActiveTab={handleTabChange}
         />
 
         <main className="flex-1 overflow-y-auto px-4 md:px-10 py-10 scroll-smooth">
@@ -192,6 +201,9 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Satisfaction / Feedback Questionnaire Modal */}
+      <SatisfactionSurveyModal />
     </div>
   );
 };

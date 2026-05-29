@@ -4,18 +4,52 @@ export async function* askAgriExpertStream(
   mimeType?: string, 
   history: { role: 'user' | 'model', parts: any[] }[] = []
 ) {
-  const response = await fetch('/api/gemini/stream', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      query,
-      imageBase64,
-      mimeType,
-      history
-    })
-  });
+  let response;
+  try {
+    response = await fetch('/api/gemini/stream', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        query,
+        imageBase64,
+        mimeType,
+        history
+      })
+    });
+  } catch (err) {
+    console.warn("POST fetch to /api/gemini/stream failed. Trying GET fallback...", err);
+    response = null;
+  }
+
+  // If POST response failed or returned method/status mismatch, try GET fallback
+  if (!response || !response.ok && (response.status === 404 || response.status === 405)) {
+    console.warn(`POST to /api/gemini/stream was unavailable. Executing GET connection fallback...`);
+    const queryParams = new URL(window.location.origin + '/api/gemini/stream');
+    queryParams.searchParams.append('query', query);
+    
+    // Only pass image in GET query string if it is short enough to not exceed standard URL limits (8KB)
+    if (imageBase64 && imageBase64.length < 4000) {
+      queryParams.searchParams.append('imageBase64', imageBase64);
+      if (mimeType) queryParams.searchParams.append('mimeType', mimeType);
+    }
+    
+    if (history && history.length > 0) {
+      // Use abbreviated history if possible to save URL length space
+      try {
+        queryParams.searchParams.append('history', JSON.stringify(history.slice(-4)));
+      } catch (e) {}
+    }
+
+    try {
+      response = await fetch(queryParams.toString(), {
+        method: 'GET'
+      });
+    } catch (getErr: any) {
+      throw new Error(`Koneksi AI Gagal: ${getErr.message || 'Layanan tidak dapat dihubungi.'}`);
+    }
+  }
 
   if (!response.ok) {
     const errorText = await response.text();

@@ -9,10 +9,10 @@ interface ContactOfficersProps {
 const DEFAULT_OFFICERS: Officer[] = [
   {
     id: '1',
-    name: 'Pither Keristian',
+    name: 'Pither Kristian Penikay',
     role: 'Petugas POPT',
-    phone: '6281234567890',
-    photoUrl: 'https://lh3.googleusercontent.com/d/1_B8lY-B9hFQwVIpVoTarEUDgCN3g4KWh=s400',
+    phone: '628215557107',
+    photoUrl: 'https://lh3.googleusercontent.com/d/1_B8lY-B9hFQwVIpVoTarEUDgCN3g4KWh',
     description: 'Spesialis Hama Tanaman Pangan'
   },
   {
@@ -41,7 +41,23 @@ const ContactOfficers: React.FC<ContactOfficersProps> = ({ userRole }) => {
   useEffect(() => {
     const saved = localStorage.getItem('popt_officers');
     if (saved) {
-      setOfficers(JSON.parse(saved));
+      let parsed = JSON.parse(saved);
+      let updated = false;
+      parsed = parsed.map((o: any) => {
+        if (o.id === '1' || o.name === 'Pither Keristian') {
+          updated = true;
+          return {
+            ...o,
+            name: 'Pither Kristian',
+            photoUrl: 'https://lh3.googleusercontent.com/d/1_B8lY-B9hFQwVIpVoTarEUDgCN3g4KWh'
+          };
+        }
+        return o;
+      });
+      setOfficers(parsed);
+      if (updated) {
+        localStorage.setItem('popt_officers', JSON.stringify(parsed));
+      }
     } else {
       setOfficers(DEFAULT_OFFICERS);
       localStorage.setItem('popt_officers', JSON.stringify(DEFAULT_OFFICERS));

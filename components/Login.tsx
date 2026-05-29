@@ -15,7 +15,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     e.preventDefault();
     
     if (username === 'admin' && password === '12345') {
-      onLogin(username, 'Pither Keristian Penikay, S.Si', 'Admin', 'POPT BPP Nulle');
+      onLogin(username, 'Pither Kristian Penikay, S.Si', 'Admin', 'POPT BPP Nulle');
       return;
     }
 

@@ -1,5 +1,8 @@
 
 import { PestInfo, Report } from './types';
+import phytophthoraImg from './src/assets/images/phytophthora_stem_rot_1779624179481.png';
+import bactroceraImg from './src/assets/images/bactrocera_fruit_fly_1779624198875.png';
+import anthracnoseImg from './src/assets/images/anthracnose_patek_1779624216969.png';
 
 export const PEST_DATA: PestInfo[] = [
   {
@@ -8,7 +11,7 @@ export const PEST_DATA: PestInfo[] = [
     host: 'Tanaman Petai',
     symptoms: 'Batang menghitam, keluar lendir, kulit kayu mengelupas.',
     control: 'Sanitasi lahan, pemangkasan bagian yang sakit, aplikasi fungisida tembaga.',
-    imageUrl: '/src/assets/images/phytophthora_stem_rot_1779624179481.png'
+    imageUrl: phytophthoraImg
   },
   {
     id: '2',
@@ -16,7 +19,7 @@ export const PEST_DATA: PestInfo[] = [
     host: 'Cabai & Tomat',
     symptoms: 'Buah berlubang kecil, membusuk, dan rontok sebelum waktunya.',
     control: 'Pemasangan perangkap feromon, pembungkusan buah, pemusnahan buah yang rontok.',
-    imageUrl: '/src/assets/images/bactrocera_fruit_fly_1779624198875.png'
+    imageUrl: bactroceraImg
   },
   {
     id: '3',
@@ -24,7 +27,7 @@ export const PEST_DATA: PestInfo[] = [
     host: 'Cabai',
     symptoms: 'Bercak coklat kehitaman melingkar pada buah cabai yang matang.',
     control: 'Gunakan benih sehat, atur jarak tanam, aplikasi fungisida secara terjadwal.',
-    imageUrl: '/src/assets/images/anthracnose_patek_1779624216969.png'
+    imageUrl: anthracnoseImg
   }
 ];
 

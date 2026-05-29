@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import { GoogleGenAI, Type } from "@google/genai";
 import fs from 'fs';
 import path from 'path';
+import { createClient } from '@supabase/supabase-js';
 
 const app = express();
 
@@ -680,9 +681,20 @@ Kembalikan pesan dalam bentuk JSON dengan key "masalah_rekap" and "solusi_rekap"
   }
 });
 
-// Gemini AI API Streaming Proxy Route
-app.post('/api/gemini/stream', async (req, res) => {
-  const { query, imageBase64, mimeType, history } = req.body;
+// Gemini AI API Streaming Proxy Route (Supporting both POST and GET for proxy/redirect resilience)
+app.all('/api/gemini/stream', async (req, res) => {
+  const query = req.body?.query || req.query?.query;
+  const imageBase64 = req.body?.imageBase64 || req.query?.imageBase64;
+  const mimeType = req.body?.mimeType || req.query?.mimeType;
+  let history = req.body?.history;
+
+  if (!history && req.query?.history) {
+    try {
+      history = JSON.parse(req.query.history as string);
+    } catch (e) {
+      console.warn('Failed to parse history from GET query params', e);
+    }
+  }
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -718,12 +730,59 @@ app.post('/api/gemini/stream', async (req, res) => {
 
     contents.push({ role: 'user', parts: currentParts });
 
+    // Real-time Google Sheet data grounding context
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwWOfV3l5HLaUPJyqgqTgw-qHOlzqXDR4DBZ-K0QdDSU4-Yv3OSmy8za6yI-DnA94rm/exec';
+    let sheetGroundingContext = 'Data sedang tidak tersedia karena masalah koneksi Google Sheets.';
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500); // 2.5 seconds timeout safeguard
+      const sheetResponse = await fetch(APPS_SCRIPT_URL, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (sheetResponse.ok) {
+        const text = await sheetResponse.text();
+        const parsed = JSON.parse(text);
+        if (parsed && parsed.success && Array.isArray(parsed.data)) {
+          // Keep the last 15 reports to stay within context size beautifully
+          const recentRows = parsed.data.slice(-15).reverse();
+          sheetGroundingContext = recentRows.map((row: any, idx: number) => {
+            const ticket = row.ticketId || row['No Tiket'] || row['no tiket'] || row.Tiket || '';
+            const nama = row.Nama || row.farmerName || row.nama || 'Tanpa Nama';
+            const tanggal = row.Tanggal || row.timestamp || row.tanggal || '';
+            const kelompok = row['Kelompok Tani'] || row.farmerGroup || row['kelompok tani'] || 'Umum';
+            const alamat = row.Alamat || row.address || '';
+            const masalah = row.Masalah || row.question || row.problem || '';
+            const hasil = row.Hasil || row.aiResponse || row.response || '';
+            return `Laporan #${idx + 1}: Tiket=${ticket}, Tanggal=${tanggal}, Petani=${nama} (Poktan=${kelompok}, Alamat=${alamat}), Masalah="${masalah}", Diagnosa/Saran="${hasil}"`;
+          }).join('\n');
+        } else if (Array.isArray(parsed)) {
+          const recentRows = parsed.slice(-15).reverse();
+          sheetGroundingContext = recentRows.map((row: any, idx: number) => {
+            const ticket = row.ticketId || row['No Tiket'] || row.Tiket || '';
+            const nama = row.Nama || row.farmerName || row.nama || 'Tanpa Nama';
+            const tanggal = row.Tanggal || row.timestamp || row.tanggal || '';
+            const kelompok = row['Kelompok Tani'] || row.farmerGroup || 'Umum';
+            const alamat = row.Alamat || row.address || '';
+            const masalah = row.Masalah || row.question || '';
+            const hasil = row.Hasil || row.aiResponse || '';
+            return `Laporan #${idx + 1}: Tiket=${ticket}, Tanggal=${tanggal}, Petani=${nama} (Poktan=${kelompok}, Alamat=${alamat}), Masalah="${masalah}", Diagnosa/Saran="${hasil}"`;
+          }).join('\n');
+        }
+      }
+    } catch (sheetErr: any) {
+      console.warn("[Gemini Grounding] Silently bypassed Google Sheet grounding:", sheetErr.message || sheetErr);
+      sheetGroundingContext = "Koneksi Google Spreadsheet sedang tertunda atau offline. Gunakan data lokal jika tersedia.";
+    }
+
     const systemInstruction = `Anda adalah asisten AI Pakar SMART POPT (Pengamat Organisme Pengganggu Tumbuhan) BPP NULE. 
 Tugas utama Anda adalah membantu petani mengidentifikasi hama dan penyakit tanaman padi, jagung, dan hortikultura secara akurat.
 
 KEMAMPUAN KHUSUS (SUMBER DATA):
 - Anda terhubung dengan Google Search. SELALU gunakan pencarian web jika Anda merasa informasi yang Anda miliki kurang spesifik untuk wilayah NTT atau untuk jenis varietas tertentu.
 - Berikan jawaban yang mendalam dan solutif seperti ChatGPT, namun tetap praktis untuk petani di lapangan.
+- Anda juga TERKONEKSI secara realtime dengan Google Spreadsheet yang menampung laporan seluruh petani BPP Nule. Jika petani bertanya tentang laporan mereka atau mengonfirmasi rekam data, Anda dapat merujuk ke data realtime di bawah ini:
+--- MULAI DATA REALTIME SPREADSHEET ---
+${sheetGroundingContext}
+--- AKHIR DATA REALTIME SPREADSHEET ---
 
 PROSEDUR IDENTIFIKASI:
 1. Jika ada FOTO: Langsung berikan analisis visual awal. Katakan apa yang Anda lihat (misal: "Saya melihat bercak cokelat pada daun padi Bapak/Ibu...").
@@ -830,8 +889,11 @@ function getVisitorCountFromDisk(): number {
   return visitorCache;
 }
 
-function incrementVisitorCountOnDisk(): number {
+function incrementVisitorCountOnDisk(lastKnown?: number): number {
   let count = getVisitorCountFromDisk();
+  if (lastKnown && lastKnown > count) {
+    count = lastKnown;
+  }
   count += 1;
   visitorCache = count;
   try {
@@ -843,13 +905,210 @@ function incrementVisitorCountOnDisk(): number {
 }
 
 app.get('/api/visitor/count', (req, res) => {
-  const count = getVisitorCountFromDisk();
+  const lastKnown = req.query.lastKnown ? parseInt(req.query.lastKnown as string, 10) : undefined;
+  let count = getVisitorCountFromDisk();
+  
+  if (lastKnown && lastKnown > count) {
+    count = lastKnown;
+    visitorCache = count;
+    try {
+      fs.writeFileSync(VISITOR_FILE, JSON.stringify({ count }), 'utf-8');
+    } catch (e) {}
+  }
+  
   res.json({ count });
 });
 
 app.post('/api/visitor/increment', (req, res) => {
-  const count = incrementVisitorCountOnDisk();
+  const lastKnown = req.body.lastKnown ? parseInt(req.body.lastKnown as string, 10) : undefined;
+  const count = incrementVisitorCountOnDisk(lastKnown);
   res.json({ count });
+});
+
+// --- Supabase Config & Data Integration ---
+const CONFIG_FILE = path.join('/tmp', 'supabase_config.json');
+
+function getSupabaseConfig() {
+  let config = {
+    url: process.env.SUPABASE_URL || 'https://hvxrwragkrfsbgbmwpcd.supabase.co',
+    anonKey: process.env.SUPABASE_ANON_KEY || '',
+    tablePenyuluhan: process.env.SUPABASE_TABLE_PENYULUHAN || 'penyuluhan',
+    tableOptHama: process.env.SUPABASE_TABLE_OPTHAMA || 'katalog_hama'
+  };
+
+  try {
+    if (fs.existsSync(CONFIG_FILE)) {
+      const raw = fs.readFileSync(CONFIG_FILE, 'utf-8');
+      const saved = JSON.parse(raw);
+      config = { ...config, ...saved };
+    }
+  } catch (e) {
+    console.error('Error reading Supabase configuration file:', e);
+  }
+
+  return config;
+}
+
+function getSupabaseClient(config: any) {
+  if (!config.url || !config.anonKey) {
+    return null;
+  }
+  return createClient(config.url, config.anonKey, {
+    auth: {
+      persistSession: false
+    }
+  });
+}
+
+app.get('/api/supabase/config', (req, res) => {
+  const config = getSupabaseConfig();
+  const hasKey = !!config.anonKey;
+  const maskedKey = config.anonKey ? `${config.anonKey.substring(0, 8)}...${config.anonKey.substring(config.anonKey.length - 8)}` : '';
+  res.json({
+    url: config.url,
+    tablePenyuluhan: config.tablePenyuluhan,
+    tableOptHama: config.tableOptHama,
+    hasKey,
+    maskedKey
+  });
+});
+
+app.post('/api/supabase/config', (req, res) => {
+  try {
+    const { url, anonKey, tablePenyuluhan, tableOptHama } = req.body;
+    const current = getSupabaseConfig();
+    
+    const updated = {
+      url: url !== undefined ? url : current.url,
+      anonKey: anonKey !== undefined ? anonKey : current.anonKey,
+      tablePenyuluhan: tablePenyuluhan !== undefined ? tablePenyuluhan : current.tablePenyuluhan,
+      tableOptHama: tableOptHama !== undefined ? tableOptHama : current.tableOptHama,
+    };
+
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(updated), 'utf-8');
+    res.json({ success: true, message: 'Konfigurasi Supabase berhasil disimpan.' });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message || String(error) });
+  }
+});
+
+// Generic Fetch from Supabase Table
+app.get('/api/supabase/data/:table', async (req, res) => {
+  const { table } = req.params;
+  const config = getSupabaseConfig();
+  
+  const tableName = table === 'penyuluhan' ? config.tablePenyuluhan : config.tableOptHama;
+  
+  if (!config.anonKey) {
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Supabase API Key (Anon Key) belum dikonfigurasi di server. Buka tab "Koneksi Supabase" untuk mendaftarkan kunci Anda.',
+      code: 'MISSING_KEY'
+    });
+  }
+
+  const client = getSupabaseClient(config);
+  if (!client) {
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Inisialisasi klien Supabase gagal. Silakan periksa URL dan kunci Anda.',
+      code: 'INVALID_CLIENT'
+    });
+  }
+
+  try {
+    const { data, error } = await client
+      .from(tableName)
+      .select('*');
+
+    if (error) {
+      console.error(`Supabase fetch error for table ${tableName}:`, error);
+      return res.status(500).json({ 
+        success: false, 
+        error: `Supabase Error: ${error.message} (Kode: ${error.code}). Cek apakah tabel bernama "${tableName}" sudah dibuat di database Supabase Anda.`,
+        code: 'SUPABASE_ERROR',
+        details: error
+      });
+    }
+
+    res.json({ success: true, data });
+  } catch (err: any) {
+    console.error(`Unexpected fetch error for table ${tableName}:`, err);
+    res.status(500).json({ success: false, error: err.message || String(err), code: 'UNEXPECTED_ERROR' });
+  }
+});
+
+// Generic Upsert to Supabase Table
+app.post('/api/supabase/data/:table', async (req, res) => {
+  const { table } = req.params;
+  const item = req.body;
+  const config = getSupabaseConfig();
+  
+  const tableName = table === 'penyuluhan' ? config.tablePenyuluhan : config.tableOptHama;
+  
+  if (!config.anonKey) {
+    return res.status(400).json({ success: false, error: 'Supabase API Key belum dikonfigurasi.' });
+  }
+
+  const client = getSupabaseClient(config);
+  if (!client) {
+    return res.status(400).json({ success: false, error: 'Klien Supabase gagal diinisialisasi.' });
+  }
+
+  try {
+    const { data, error } = await client
+      .from(tableName)
+      .upsert(item, { onConflict: 'id' })
+      .select();
+
+    if (error) {
+      console.error(`Supabase upsert error for table ${tableName}:`, error);
+      return res.status(500).json({ 
+        success: false, 
+        error: `Gagal menyimpan ke Supabase: ${error.message}. Harap verifikasi struktur kolom tabel di Supabase.`,
+        details: error
+      });
+    }
+
+    res.json({ success: true, data });
+  } catch (err: any) {
+    console.error(`Unexpected upsert error for table ${tableName}:`, err);
+    res.status(500).json({ success: false, error: err.message || String(err) });
+  }
+});
+
+// Generic Delete from Supabase Table
+app.delete('/api/supabase/data/:table/:id', async (req, res) => {
+  const { table, id } = req.params;
+  const config = getSupabaseConfig();
+  
+  const tableName = table === 'penyuluhan' ? config.tablePenyuluhan : config.tableOptHama;
+  
+  if (!config.anonKey) {
+    return res.status(400).json({ success: false, error: 'Supabase API Key belum dikonfigurasi.' });
+  }
+
+  const client = getSupabaseClient(config);
+  if (!client) {
+    return res.status(400).json({ success: false, error: 'Klien Supabase gagal diinisialisasi.' });
+  }
+
+  try {
+    const { error } = await client
+      .from(tableName)
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error(`Supabase delete error for table ${tableName}:`, error);
+      return res.status(500).json({ success: false, error: error.message, details: error });
+    }
+
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error(`Unexpected delete error for table ${tableName}:`, err);
+    res.status(500).json({ success: false, error: err.message || String(err) });
+  }
 });
 
 export default app;

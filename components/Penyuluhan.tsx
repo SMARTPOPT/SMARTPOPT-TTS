@@ -2,6 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import { UserRole } from '../types';
 import { FileText, Play, Image, Award, BookOpen, Clock, Calendar, ArrowLeft, ArrowRight, Eye, Trash2, Edit, X, Plus, Download, ZoomIn, ZoomOut, CheckCircle, ExternalLink } from 'lucide-react';
+import sanisImg from '../src/assets/images/infografis_sanitasi_1779624257036.png';
+import { SupabaseService } from '../SupabaseService';
+import { SupabaseConfigPanel } from './SupabaseConfigPanel';
 
 interface Material {
   id: string;
@@ -96,37 +99,71 @@ const Penyuluhan: React.FC<PenyuluhanProps> = ({ userRole }) => {
   const defaultMaterials: Material[] = [
     { id: '1', title: 'Pengendalian OPT Ramah Lingkungan', type: 'Modul', date: '12 Jan 2026', author: 'Dr. Ir. Suharyanto', url: '' },
     { id: '2', title: 'Budidaya Cabai Sehat Tanpa Pestisida', type: 'Video', date: '05 Jan 2026', author: 'Tim POPT Jabar', url: 'https://www.youtube.com/embed/dQw4w9WgXcQ' },
-    { id: '3', title: 'Teknik Sanitasi Lahan Musim Hujan', type: 'Infografis', date: '28 Des 2025', author: 'Kementan RI', url: '/src/assets/images/infografis_sanitasi_1779624257036.png' },
+    { id: '3', title: 'Teknik Sanitasi Lahan Musim Hujan', type: 'Infografis', date: '28 Des 2025', author: 'Kementan RI', url: sanisImg },
     { id: '4', title: 'Manajemen Musuh Alami di Sawah', type: 'Modul', date: '15 Des 2025', author: 'Balai Proteksi Tanaman', url: '' },
   ];
 
-  useEffect(() => {
-    const savedMaterials = localStorage.getItem('popt_materials');
-    if (savedMaterials) {
-      setMaterials(JSON.parse(savedMaterials));
-    } else {
-      setMaterials(defaultMaterials);
+  const [supabaseConnected, setSupabaseConnected] = useState(false);
+
+  const loadData = async () => {
+    try {
+      const data = await SupabaseService.fetchRemoteData('penyuluhan');
+      setMaterials(data);
+      localStorage.setItem('popt_materials', JSON.stringify(data));
+      setSupabaseConnected(true);
+    } catch (err: any) {
+      console.warn("Supabase fetch failed initially (normal if unconfigured):", err);
+      setSupabaseConnected(false);
+      const savedMaterials = localStorage.getItem('popt_materials');
+      if (savedMaterials) {
+        setMaterials(JSON.parse(savedMaterials));
+      } else {
+        setMaterials(defaultMaterials);
+      }
     }
+  };
+
+  useEffect(() => {
+    loadData();
   }, []);
 
-  const handleAddMaterial = (e: React.FormEvent) => {
+  const handleAddMaterial = async (e: React.FormEvent) => {
     e.preventDefault();
+    let updatedMaterials: Material[];
+    let materialToSave: Material;
+
     if (editingId) {
-      const updatedMaterials = materials.map(m => 
-        m.id === editingId ? { ...m, ...newMaterial as Material } : m
+      materialToSave = {
+        ...materials.find(m => m.id === editingId)!,
+        ...newMaterial as Material
+      };
+      updatedMaterials = materials.map(m => 
+        m.id === editingId ? materialToSave : m
       );
-      setMaterials(updatedMaterials);
-      localStorage.setItem('popt_materials', JSON.stringify(updatedMaterials));
     } else {
-      const materialToAdd: Material = {
+      materialToSave = {
         ...newMaterial as Material,
         id: Date.now().toString(),
         date: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
       };
-      const updatedMaterials = [materialToAdd, ...materials];
-      setMaterials(updatedMaterials);
-      localStorage.setItem('popt_materials', JSON.stringify(updatedMaterials));
+      updatedMaterials = [materialToSave, ...materials];
     }
+
+    setMaterials(updatedMaterials);
+    localStorage.setItem('popt_materials', JSON.stringify(updatedMaterials));
+
+    // Try saving to Supabase if connected
+    try {
+      await SupabaseService.saveRemoteData('penyuluhan', materialToSave);
+      setSupabaseConnected(true);
+    } catch (err: any) {
+      console.warn('Could not sync addition with Supabase:', err.message);
+      // We don't block local success but warn user if they are admin and intentionally turned on Supabase
+      if (userRole === 'Admin') {
+        alert(`Disimpan secara lokal. Gagal sinkron ke Supabase: ${err.message}`);
+      }
+    }
+
     setShowAddModal(false);
     setEditingId(null);
     setNewMaterial({ title: '', type: 'Modul', author: '', url: '' });
@@ -138,11 +175,20 @@ const Penyuluhan: React.FC<PenyuluhanProps> = ({ userRole }) => {
     setShowAddModal(true);
   };
 
-  const handleDeleteMaterial = (id: string) => {
+  const handleDeleteMaterial = async (id: string) => {
     if (window.confirm('Apakah Anda yakin ingin menghapus materi ini?')) {
       const updatedMaterials = materials.filter(m => m.id !== id);
       setMaterials(updatedMaterials);
       localStorage.setItem('popt_materials', JSON.stringify(updatedMaterials));
+
+      try {
+        await SupabaseService.deleteRemoteData('penyuluhan', id);
+      } catch (err: any) {
+        console.warn('Could not sync delete with Supabase:', err.message);
+        if (userRole === 'Admin') {
+          alert(`Dihapus secara lokal. Gagal hapus di Supabase: ${err.message}`);
+        }
+      }
     }
   };
 
@@ -181,6 +227,21 @@ const Penyuluhan: React.FC<PenyuluhanProps> = ({ userRole }) => {
           </button>
         )}
       </div>
+
+      {userRole === 'Admin' && (
+        <SupabaseConfigPanel 
+          tableType="penyuluhan"
+          onDataSynced={(syncedData) => {
+            setMaterials(syncedData);
+            localStorage.setItem('popt_materials', JSON.stringify(syncedData));
+            setSupabaseConnected(true);
+          }}
+          getLocalData={() => {
+            const saved = localStorage.getItem('popt_materials');
+            return saved ? JSON.parse(saved) : defaultMaterials;
+          }}
+        />
+      )}
 
       <div className="grid grid-cols-1 gap-4">
         {materials.map((item) => (
