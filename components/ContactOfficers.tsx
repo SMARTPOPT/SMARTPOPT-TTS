@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Officer, UserRole } from '../types';
 
@@ -11,13 +10,13 @@ const DEFAULT_OFFICERS: Officer[] = [
     id: '1',
     name: 'Pither Kristian Penikay',
     role: 'Petugas POPT',
-    phone: '628215557107',
+    phone: '6282155571307',
     photoUrl: 'https://lh3.googleusercontent.com/d/1_B8lY-B9hFQwVIpVoTarEUDgCN3g4KWh',
-    description: 'Spesialis Hama Tanaman Pangan'
+    description: 'PETUGAS POPT AMANBAN BARAT'
   },
   {
     id: '2',
-    name: 'Siti Aminah',
+    name: 'PUTRI RAHARAP',
     role: 'Penyuluh Pertanian',
     phone: '6281234567891',
     photoUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200',
@@ -109,9 +108,19 @@ const ContactOfficers: React.FC<ContactOfficersProps> = ({ userRole }) => {
     }
   };
 
-  const openWhatsApp = (phone: string) => {
-    const cleanPhone = phone.replace(/\D/g, '');
-    window.open(`https://wa.me/${cleanPhone}`, '_blank');
+  const openWhatsApp = (officer: Officer) => {
+    const cleanPhone = officer.phone.replace(/\D/g, '');
+    
+    // Template laporan otomatis untuk petani beserta nama dan jabatan petugas tujuan
+    const message = `Halo Bapak/Ibu *${officer.name}* (*${officer.role}*),
+
+Saya ingin menyampaikan Laporan Gejala / Serangan OPT di lahan pertanian saya dengan rincian data sebagai berikut:
+
+*📝 FORM LAPORAN OPT PETANI*
+🌾 *Nama Petani:* 📍 *Lokasi Lahan / Desa:* 🌱 *Jenis Tanaman:* 🐛 *Dugaan Hama / Penyakit:* 📐 *Luas Serangan (Perkiraan):* 📋 *Deskripsi Gejala Kerusakan:* [Mohon untuk melampirkan foto/gambar bukti gejala serangan OPT di bawah ini agar dapat dianalisis lebih lanjut] 🙏`;
+
+    const encodedMessage = encodeURIComponent(message);
+    window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, '_blank');
   };
 
   const openPhone = (phone: string) => {
@@ -185,7 +194,7 @@ const ContactOfficers: React.FC<ContactOfficersProps> = ({ userRole }) => {
               
               <div className="w-full space-y-3">
                 <button 
-                  onClick={() => openWhatsApp(officer.phone)}
+                  onClick={() => openWhatsApp(officer)}
                   className="w-full py-3 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 transition-all flex items-center justify-center space-x-2 shadow-lg shadow-emerald-100"
                 >
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -260,9 +269,9 @@ const ContactOfficers: React.FC<ContactOfficersProps> = ({ userRole }) => {
                     type="text" 
                     value={formData.phone}
                     onChange={e => setFormData({...formData, phone: e.target.value})}
-                    className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-green-500 transition-all font-medium"
-                    placeholder="62812..."
-                  />
+                  className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-green-500 transition-all font-medium"
+                  placeholder="62812..."
+                />
                 </div>
               </div>
               
