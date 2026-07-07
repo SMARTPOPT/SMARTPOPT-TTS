@@ -26,11 +26,16 @@ const App: React.FC = () => {
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [bppName, setBppName] = useState<string | null>(null);
   const [visitorCount, setVisitorCount] = useState<number | null>(null);
+  const [selectedKecamatan, setSelectedKecamatan] = useState<string>('Amanuban Barat (BPP Nule)');
 
   // Synchronize and record page visitor analytics with self-healing browser-cooperative persistence
   useEffect(() => {
     let isMounted = true;
-    const lastKnownLocal = parseInt(localStorage.getItem('smartpopt_last_visitor_count') || '0', 10);
+    let lastKnownLocal = parseInt(localStorage.getItem('smartpopt_last_visitor_count') || '0', 10);
+    if (lastKnownLocal < 200 || lastKnownLocal > 350) {
+      lastKnownLocal = 0;
+      localStorage.setItem('smartpopt_last_visitor_count', '0');
+    }
     
     const fetchCount = async () => {
       try {
@@ -135,16 +140,18 @@ const App: React.FC = () => {
           isAuthenticated={isAuthenticated}
           onLoginClick={() => setShowLoginModal(true)}
           setActiveTab={handleTabChange}
+          selectedKecamatan={selectedKecamatan}
+          setSelectedKecamatan={setSelectedKecamatan}
         />
 
         <main className="flex-1 overflow-y-auto px-4 md:px-10 py-10 scroll-smooth">
           <div className="max-w-[1400px] mx-auto">
-            {activeTab === Tab.BERANDA && <Beranda userFullName={userFullName} bppName={bppName} onNavigate={handleTabChange} visitorCount={visitorCount} />}
+            {activeTab === Tab.BERANDA && <Beranda userFullName={userFullName} bppName={bppName} onNavigate={handleTabChange} visitorCount={visitorCount} selectedKecamatan={selectedKecamatan} />}
             {activeTab === Tab.OPT && <OptInformation userRole={userRole} />}
             {activeTab === Tab.KALENDER_TANAM && <KalenderTanam />}
             {activeTab === Tab.PENYULUHAN && <Penyuluhan userRole={userRole} />}
             {activeTab === Tab.KONSULTASI && <Consultation onNavigate={handleTabChange} />}
-            {activeTab === Tab.CUACA && <WeatherWidget />}
+            {activeTab === Tab.CUACA && <WeatherWidget selectedKecamatan={selectedKecamatan} />}
             {activeTab === Tab.PETUGAS && <ContactOfficers userRole={userRole} />}
             
             {/* Protected Content */}
